@@ -1,0 +1,190 @@
+No.,Name,WGS 1984 UTM Zone 20S (x),WGS 1984 UTM Zone 20S (y),Tier,Observations
+1,Lomas gemelas de la U,339940,8357038,,
+3,Loma los guineales,344691,8356979,,
+4,Loma de San Juaquincito,338267,8350176,,H: 10 m
+5,Irachiti 1 (lomita),340692,8362187,,
+6,Loma de los Tacuarales,346716,8368995,,
+7,Irachiti 2 (Loma grande),340503,8363314,,
+8,Los Cafeces,337924,8363125,,
+9,Quillisa 1,342310,8360379,,
+10,Tacuarita,342753,8365506,,
+11,Tatoyeque,347952,8365827,,
+12,Bali 1,354012,8367627,,
+13,Bali 2,353894,8367839,,
+14,Trapiche,345733,8364812,,
+16,Ibibate,348470,8362799,2,H: 20 m
+17,Santa Fe,351012,8360933,,
+18,Sinaí,351850,8360631,,
+19,Mururé-urure,351903,8361739,,
+20,Santa Elena,355264,8358575,,
+21,Lomita de Benjamin 3,355981,8356408,,
+22,Loma de Benjamin 1,356159,8356333,,
+23,Loma de la poza de lo Hochoose,354198,8357302,,
+24,Loma de ida a los portones,347792,8356755,,
+25,Loma de la U - Kia aa,352776,8356111,,
+26,Tambata,355131,8363563,2,H: 15 m
+27,Tutumo 1,353582,8353587,,
+28,Tutumo 2,353711,8353398,,H: 5 m
+29,Benjamin 2,356100,8356601,,
+30,Isla de monte,351031,8357023,,
+31,Los portones,350407,8356070,,
+32,Loma 1,331623,8360958,,
+33,Cerrito,328998,8363198,2,"H: 16 m; core area 6,52 ha; max. area: 47,3 ha"
+36,Cerrito - Loma del puente,329519,8362294,,
+37,Loma 3,333220,8361490,,
+38,Loma 4,332926,8360683,,
+*39,Lidar Area Cerrito - mound 3,330901,8359790,3,"H: 11 m; core area: 3,9 ha"
+*40,Lidar Area Cerrito - mound 40,325637,8343053,3,"H: 4 m; corea area: 1,2 ha"
+*41,Lidar Area Cerrito - mound 41,323462,8358856,3,"H: 7 m; core area: 3,2 ha"
+*42,Lidar Area Cerrito - mound 42,324523,8363355,3,"core area: 4,9 ha"
+43,Loma de Fernando Velasco,319451,8364845,,H: 4 m
+44,-/-,321903,8367953,,
+45,Estancia Las Pavas 1,317057,8377209,,
+46,Estancia Las Pavas 3,320101,8382364,,
+47,Estancia Las Pavas 2,316163,8388881,,
+*48,"Lidar San Nicolas, Site 3",327306,8396162,3,"H: 3 m; core area: 0,8 ha; max. area: 4,7 ha"
+*49,"Lidar San Nicolas, Site 2",326749,8398366,3,H: 2 m; core area: 1 ha
+*51,"Lidar San Nicolas, site 1, mound 2",327194,8399796,2,"H: 17 m; core area: 9,7 ha"
+*53,"Lidar La Punta, site 2, mound 2",327208,8404857,2,"H: 10 m; core area: 5,6 ha"
+*54,"Lidar La Punta, Sitio 3",328025,8404710,2,"core area: 2,7 ha"
+55,La Punta,324528,8397381,3,"H: 9 m; core area: 1,9 ha"
+57,Berdun - Narasaquige,294196,8390775,,
+58,Tegere,297339,8390281,,
+59,La Loma,299927,8389533,,
+60,Loma Pecine,292979,8389440,,H: 4 m
+61,Loma Tanaka,303818,8386791,3,"H: 5 m; max. area 6,1 ha"
+62,Tegere,295332,8385066,,H: 4 m
+63,Espíritu Santo,304402,8381943,,
+64,Cernández,307414,8377608,,
+65,Loma Laguna Cernández,309441,8375592,,H: 4 m
+66,Berdun-Narasaquige,290380,8386487,,H: 3 m
+67,El pesine,289106,8385572,,H: 4 m
+68,Loma de Juanicuchi,289729,8383175,,
+69,Loma Jocreni,288420,8379513,,
+70,Loma Coimbra,292640,8371677,,
+71,Chuchini,290458,8371062,,
+72,Naranjito,292859,8369113,,
+73,Loma Suarez,288695,8366972,,
+74,Muñoz,288228,8365718,,H: 5 m
+75,Loma de Puerto Ballivián,286925,8362801,,H: 4 m
+76,Los Tojos / Catalayut,287200,8362407,,H: 4 m
+77,-/-,286875,8359240,,
+78,la Bomba,288007,8357936,,
+79,Loma Santa,288401,8357786,,
+80,Jalisco,288543,8357153,,H: 2 m
+81,Cachipere,285655,8355034,,H: 4 m
+82,Cachipere,286033,8354483,,
+83,Loma de la Santíssima Trinidad,295094,8358987,,
+*84,Area Cerrito - Mound 4,328175,8360998,3,H: 5 m; core area: 1 ha
+85,Lomita de la nueva trinidad,297953,8361048,,H: 1 m
+86,Colegio Fe y Alegría,299129,8360764,,H: 1 m
+87,Lomita Cotoca,299140,8361811,,
+89,General Vaca Medrano,300932,8361485,,
+90,Los Tacuaritas,297398,8355905,,
+91,Loma del Dr. Skandar,295646,8352570,,
+92,Palmasolo,288715,8352578,,
+93,Perro Muerto 1,305929,8350214,,
+94,Perro Muerto 2,306509,8351589,,
+95,Los Curupauces,304260,8369741,,
+96,Los Sumuqueces 1,305324,8367848,,
+97,Los Sumuqueces 2,306206,8366998,,H: 3 m
+98,Loma de Huberto Torrico,305639,8363228,3,"H: 5 m; core area: 1,3 ha"
+99,Chichi Gómez,305450,8362690,,
+100,Campamento - Mound 1,306605,8359823,,
+101,Los Curupauces,308062,8369362,,H: 2 m
+102,Laguna Cernández 2,309424,8368261,,
+103,El Chaco 1,309608,8355406,,
+104,El Chaco 2,310621,8353675,,H: 2 m
+105,La Chacra,314261,8355647,,
+106,Area Cerrito - Mound 3,327113,8357940,3,"H: 5 m; core area: 2,6 ha; max. area: 15,9 ha"
+107,Pancho Román,328799,8350032,,
+108,Salvatierra,340133,8354024,2,"H: 9 m; core area: 4,0 ha; max. area: 21,1 ha"
+109,Población de Casarabe,341110,8355066,,
+110,Loma Alta de Casarabe,341495,8355493,,
+111,Víbora,342448,8357908,,
+112,Ibiato,344164,8359702,,
+113,Didier,342404,8363750,,
+114,del Tigre,351531,8380105,,
+115,Kenia,354426,8376798,,
+116,Dulcita,358778,8379326,,
+117,San Silvestre,359274,8379131,,
+119,Viña Florida,346400,8350389,,
+120,Villa Caterine,346311,8350376,,
+121,-/-,338554,8348904,,
+122,19 de Junio,346224,8346286,,
+123,Curva de Villa Banzer,346848,8345730,,
+124,Villa Banzer,348572,8346877,,
+125,Loma de Balvino Pardo,349395,8347776,,H: 6 m
+126,19 de Junio / 76,351444,8346527,2,H: 10 m
+127,Loma de don Antonio Vaca,354131,8348022,,H: 5 m
+128,Loma de la Laguna El Tamarindo,356006,8345774,,H: 4 m
+129,Loma de Carlos Nosa Teco,359023,8345429,,H: 6 m
+130,Loma de Desiderio Nosa,357072,8343857,,H: 4 m
+131,Ave María,364864,8344590,,
+132,Guajojó,364027,8340938,,
+133,Latorre,363538,8340484,,
+134,Loma del coregidor,359691,8340257,,H: 4 m
+135,Loma de Leonor Chávez,356866,8342104,,
+136,de Juan Carlos Fernández,355271,8341326,,
+137,Loma del Carmen,354190,8342211,,
+138,Buen Jesús,352873,8342664,,
+139,Estrella de Belén,354373,8341597,,
+140,Loma 5,354374,8341477,,
+141,Tokio,352796,8340573,,
+142,de Dante Cosio,351961,8340322,,
+143,de Manuela Herrera,352144,8339801,,
+144,Simeón Negrete,350944,8340562,,
+145,Santo Domingo,347800,8340092,,
+146,El Cuarto del Doctor Sergio Ortiz,355082,8337975,,
+147,de Wilfredo Vaca Martínez,362127,8337656,,
+148,Carina Elita,358921,8335325,,
+149,Valladolid,358775,8334771,,
+150,Poza Honda,362939,8334325,,
+151,Pero Achéau,356693,8333221,,H: 5 m
+152,-/-,356037,8333218,,
+153,de José Luis Peña,354030,8334189,,
+154,La Asunta,347651,8331295,,H: 6 m
+155,-/-,346712,8330777,,
+156,Loma de San Marcos - La Victoria,350237,8325881,,H: 6 m
+157,Loma de Luis Román,354964,8328877,,H: 3 m
+158,Loma Rica,359279,8330348,,
+159,Vistosa,362027,8330088,,
+160,San Juan de Mocobí,357350,8327507,,
+161,Soledad,368628,8329665,,
+162,Solano,372334,8328762,,
+162,Bei,372334,8328762,,
+163,Mur - 1,378633,8328919,,H: 6 m
+164,Mur - 2,385943,8323516,,
+165,Escuela Caimanes,386928,8323583,,
+166,El Tacuaral,386595,8322580,,
+167,-/-,354220,8312018,,
+168,Landivar,342107,8318852,1,"H: 10 m; core area: 11 ha; max. area: 314,8 ha"
+174,Chocolatal - 2,319796,8331949,,H: 5 m
+175,Chocolatal - 1,319558,8332865,,
+176,El Coquino,319942,8335922,,H: 1 m
+177,Chichi Munguía,315198,8336599,,H: 4 m
+178,Córdoba,310557,8339318,,
+179,-/-,313200,8338192,,
+180,San Antonio,315738,8339769,,
+181,Belleza,316022,8340594,,
+182,Aldo Monasterio,320980,8338821,,
+183,-/-,322312,8338716,,
+185,Cotoca,328673,8342813,1,"H: 20 m; core area: 22,3 ha; max. area: 147,2 ha"
+186,Sirari (Chocolatalito),324716,8343896,2,"H: 10 m; core area: 3,1 ha; max. area: 26,8 ha"
+187,Samuray,324559,8344672,3,"H: 3 m; core area: 1,3 ha"
+*189,Lidar Area Cotoca - s.n. 1,322202,8346234,4,"H: 2 m; core area: 0,25 ha; max. area: 2,3 ha"
+190,Somopae,321321,8347058,,
+191,Miraflores,320600,8346924,,
+*192,Loma de Juan Rivera,320080,8346298,4,"H: 2 m; core area: 0,28 ha; max. area: 2,5 ha"
+193,Santa María,317270,8345209,2,"H: 7 m; core area: 4,7 ha; max. area: 26,7 ha"
+194,Mendoza,343929,8354012,,
+*195,Lidar Area Cotoca - Mound 195,320698,8342798,3,"H: 5 m; core area: 1,2 ha ; max. area: 5,1 ha"
+196,Puesto militar de Casarabe,346002,8352784,,
+197,El Cerrito,301377,8366539,,H: 4 m
+198,-/-,294153,8346722,,
+199,Trinidad Viejo,288214,8347202,,
+209,Campamento - Mound 2,306823,8359895,,
+211,Loma Colegio,310656,8340075,,
+213,Loma del gran cacique,361359,8341551,,H: 6 m
+301,Mari,281137,8352695,,
+302,Kiusiu,279766,8353847,,

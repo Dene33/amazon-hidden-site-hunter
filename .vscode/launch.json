@@ -1,0 +1,62 @@
+{
+  // Use IntelliSense to learn about possible attributes.
+  // Hover to view descriptions of existing attributes.
+  // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "detect-hidden-sites",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/.venv/bin/detect-hidden-sites",
+      "console": "integratedTerminal",
+      //   "args": "${command:pickArgs}",
+      //   "args": [
+      //     "--bbox",
+      //     "-63.9",
+      //     "-10.8",
+      //     "-63.3",
+      //     "-10.2",
+      //     "--out",
+      //     "results",
+      //     "--years",
+      //     "1"
+      //   ],
+      // "args": [
+      //   "--bbox",
+      //   "-67.438202",
+      //   "-8.937983",
+      //   "-67.185516",
+      //   "-8.704572",
+      //   "--out",
+      //   "results",
+      //   "--years",
+      //   "1"
+      // ],
+      "args": [
+        "--bbox",
+        "-64.651794",
+        "-15.010122",
+        "-64.572144",
+        "-14.952414",
+        "--out",
+        "results_casarabe_cotoca",
+        "--years",
+        "8"
+      ],
+      "cwd": "${fileDirname}",
+      "purpose": ["debug-in-terminal"]
+    },
+    // Current file
+    {
+      "name": "Current File",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${fileDirname}",
+      "purpose": ["debug-in-terminal"]
+    }
+  ]
+}

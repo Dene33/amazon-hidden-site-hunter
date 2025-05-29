@@ -1,0 +1,15 @@
+ID,Site Name,UTM X (Easting),UTM Y (Northing),Classification,LIDAR,Number of mounds,Mound shape,Entrance shape,Paired,Main avenue directions,Diameter (m),Associated features,Elevation (m)
+1,Aparecida do Norte I,705710,8924021,Irregular,No,,,No,,,Square Geoglyph,140,
+2,Caboquim,700331,8915044,Circular,Yes,26,Elongated and square,L,Superimposed,North/South,84,,140.0
+3,Coqueiral,680928,8905338,Irregular,No,10,Elongated,,No,North/South,,,160.0
+4,Dois círculos IV,647270,8871232,Rectangular,Yes,16,Elongated and square,,Twins,,77,Circular Geoglyph,200.0
+5,Dois círculos V,647803,8871561,Irregular,Yes,32,Elongated and square,,Twin/Superimposed,,68,Circular Geoglyph,200.0
+6,Dona Maria IV,698270,8920257,Circular,Yes,12,,,Twins,,105,Square Geoglyph,160.0
+7,Dona Maria V,697792,8919995,Circular,Yes,16,Elongated and square,,Twins,,,Square Geoglyph,160.0
+8,Estrela do Norte I,653169,8877129,Circular,Yes,12,,,Twins,,84,Square Geoglyph,170.0
+9,Estrela do Norte II,653379,8878115,Irregular,Yes,12,,,Twins,,67,Square Geoglyph,160.0
+10,Fazenda Boa Esperança,700753,8911712,Circular,Yes,14,,,No,North/South,55,,160.0
+11,Fazenda Iquiri II,674027,8886364,Circular,No,19,Elongated,,No,East/West,153,Square Geoglyph,190.0
+12,Fazenda Tocantins,699646,8905612,Circular,Yes,18,,L,No,East/West,60,,150.0
+13,Fonte Boa II,684072,8886375,Circular,No,,,,No,,,Square Geoglyph,210.0
+14,Gavião VI,649260,8836229,Rectangular,No,5,Elongated,,Twins,Sudeste,33,,210.0
