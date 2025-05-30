@@ -67,8 +67,38 @@
       "console": "integratedTerminal",
       "justMyCode": false,
       "cwd": "${fileDirname}",
-      "args": "${command:pickArgs}",
+      "args": ["${command:pickArgs}"],
       "purpose": ["debug-in-terminal"]
+    },
+    {
+      "name": "Pipeline",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/pipeline.py",
+      "console": "integratedTerminal",
+      // use the value the user just typed:
+      "args": ["${input:scriptArgs}"]
+    },
+    {
+      "name": "Python: current file (remembered args)",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      // use the value the user just typed:
+      "args": ["${input:scriptArgs}"]
+    }
+  ],
+  "inputs": [
+    {
+      "id": "scriptArgs",
+      "type": "command",
+      "command": "memento.promptString",
+      "args": {
+        "id": "scriptArgs", // key under which the value is stored
+        "description": "Arguments for the script",
+        "default": "" // first-run default
+      }
     }
   ]
 }
