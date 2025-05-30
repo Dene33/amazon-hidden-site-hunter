@@ -57,6 +57,18 @@
       "justMyCode": false,
       "cwd": "${fileDirname}",
       "purpose": ["debug-in-terminal"]
+    },
+    // Current file with arguments
+    {
+      "name": "Current File with Arguments",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${file}",
+      "console": "integratedTerminal",
+      "justMyCode": false,
+      "cwd": "${fileDirname}",
+      "args": "${command:pickArgs}",
+      "purpose": ["debug-in-terminal"]
     }
   ]
 }

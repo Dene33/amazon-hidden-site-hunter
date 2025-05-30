@@ -1,0 +1,34 @@
+# Example configuration for the refactored pipeline
+
+bbox: [-64.651794, -15.010122, -64.572144, -14.952414]
+out_dir: example_output
+
+step1:
+  enabled: true
+  fetch_cop_tiles:
+    enabled: true
+  fetch_gedi_points:
+    enabled: true
+    time_start: '2017-01-01'
+    time_end: '2025-01-01'
+  visualize: true
+
+step2:
+  enabled: true
+  resolution: 0.0002695
+  visualize: true
+
+step3:
+  enabled: true
+  visualize: true
+
+step4:
+  enabled: true
+  sigma: 2
+  amp_thresh: 1.0
+  size_thresh_m: 200
+  visualize: true
+  save_json: true
+
+step5:
+  enabled: true
