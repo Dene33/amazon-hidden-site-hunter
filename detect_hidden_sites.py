@@ -14,9 +14,10 @@ v0.5  — persistent GEDI cache
 """
 
 from __future__ import annotations
-import argparse, datetime as dt, math, shutil
+import argparse, datetime as dt, math, os, shutil
 from pathlib import Path
-from typing import List, Tuple
+from typing import Any, List, Tuple
+from getpass import getpass
 
 import geopandas as gpd, numpy as np, pandas as pd, rasterio as rio
 import rasterio.merge as merge
@@ -44,6 +45,22 @@ EARTHDATA_VERSION= "002"
 # ──────────────────────────────────────────────────────────────────
 
 
+def ensure_earthdata_login() -> None:
+    """Login using ~/.netrc if available, otherwise prompt the user."""
+    console.print("[yellow]Earthdata login required")
+    try:
+        earthaccess.login(strategy="netrc", persist=False)
+        console.print("[green]Logged in successfully using ~/.netrc")
+        return
+    except Exception as e:
+        console.print(f"[red]Failed to load credentials: {escape(str(e))}")        
+    console.print("No ~/.netrc found or login failed, prompting for credentials")
+
+    persist = input("Use persistent login (save credentials to ~/.netrc)? [y/N] ").strip().lower() == "y"
+    
+    earthaccess.login(persist=persist, strategy="interactive")
+
+
 def cop_tile_url(lat: float, lon: float) -> str:
     lat_sw, lon_sw = math.floor(lat), math.floor(lon)
     ns, ew   = ("N" if lat_sw >= 0 else "S"), ("E" if lon_sw >= 0 else "W")
@@ -52,58 +69,26 @@ def cop_tile_url(lat: float, lon: float) -> str:
     return f"{COP_DEM_BASE}/{stem}/{stem}.tif"
 
 
-# def fetch_cop_tiles(bbox: Tuple[float, float, float, float], out_dir: Path) -> Path:
-#     xmin, ymin, xmax, ymax = bbox
-#     lat_rng = range(int(math.floor(ymin)), int(math.ceil(ymax)) + 1)
-#     lon_rng = range(int(math.floor(xmin)), int(math.ceil(xmax)) + 1)
-
-#     tif_paths: List[Path] = []
-#     for lat in lat_rng:
-#         for lon in lon_rng:
-#             url   = cop_tile_url(lat, lon)
-#             local = out_dir / Path(url).name
-#             if not local.exists():
-#                 console.log(f"Fetching {url}")
-#                 try:
-#                     with requests.get(url, stream=True, timeout=60) as r:
-#                         r.raise_for_status()
-#                         with open(local, "wb") as fp:
-#                             for chunk in r.iter_content(131_072):
-#                                 fp.write(chunk)
-#                 except requests.HTTPError as exc:
-#                     console.log(f"[red]Failed {url}: {exc.response.status_code}")
-#                     continue
-#             tif_paths.append(local)
-
-#     if not tif_paths:
-#         raise RuntimeError("No Copernicus DEM tiles fetched; check bbox.")
-
-#     console.log("Merging DEM tiles → single raster")
-#     srcs = [rio.open(str(p)) for p in tif_paths]
-#     mosaic, transform = merge.merge(srcs)
-#     meta = srcs[0].meta.copy()
-#     meta.update(height=mosaic.shape[1], width=mosaic.shape[2], transform=transform)
-
-#     # Add the bbox of the mosaic to the metadata
-    
-#     # print(float(meta["transform"][2]),)
-#     # print(float(meta["transform"][5] + meta["transform"][4] * meta["height"]),)
-#     # print(float(meta["transform"][2] + meta["transform"][0] * meta["width"]),)
-#     # print(float(meta["transform"][5]),)
-    
-#     # print(f"Mosaic bounds: {meta['bounds']}")
-
-#     dem_path = out_dir / "cop90_mosaic.tif"
-#     with rio.open(dem_path, "w", **meta) as dst:
-#         dst.write(mosaic)
-#     for s in srcs:
-#         s.close()
-#     return dem_path
-
-
-
 def fetch_cop_tiles(bbox: tuple[float, float, float, float], out_dir: Path) -> Path:
     xmin, ymin, xmax, ymax = bbox
+    dem_path = out_dir / "cop90_mosaic.tif"
+
+    if dem_path.exists():
+        try:
+            with rio.open(dem_path) as src:
+                tag = src.tags().get("bbox")
+                if tag:
+                    saved = tuple(map(float, tag.split(",")))
+                    if all(abs(s - b) < 1e-6 for s, b in zip(saved, bbox)):
+                        console.log(f"[green]Using existing DEM mosaic → {dem_path}")
+                        return dem_path
+                bounds = (src.bounds.left, src.bounds.bottom, src.bounds.right, src.bounds.top)
+                if all(abs(s - b) < 1e-6 for s, b in zip(bounds, bbox)):
+                    console.log(f"[green]Using existing DEM mosaic → {dem_path}")
+                    return dem_path
+        except Exception as e:
+            console.log(f"[yellow]Failed to read existing DEM: {escape(str(e))}")           
+
     lat_rng = range(int(math.floor(ymin)), int(math.ceil(ymax)) + 1)
     lon_rng = range(int(math.floor(xmin)), int(math.ceil(xmax)) + 1)
 
@@ -146,6 +131,7 @@ def fetch_cop_tiles(bbox: tuple[float, float, float, float], out_dir: Path) -> P
     dem_path = out_dir / "cop90_mosaic.tif"
     with rio.open(dem_path, "w", **meta) as dst:
         dst.write(mosaic)
+        dst.update_tags(bbox=",".join(map(str, bbox)))
 
     for s in srcs:
         s.close()
@@ -187,11 +173,7 @@ def fetch_gedi_points(
     xmin, ymin, xmax, ymax = bbox
 
     # login
-    try:
-        earthaccess.login(strategy="netrc", persist=False)
-    except Exception:
-        console.print("[yellow]Earthdata Login required – opening browser…")
-        earthaccess.login(persist=False)
+    ensure_earthdata_login()
 
     # search
     granules = earthaccess.search_data(
@@ -209,55 +191,61 @@ def fetch_gedi_points(
         f"({total_bytes/1_048_576:,.1f} MiB)"
     )
 
-    # 2️⃣  optional prompt
-    resp = input("Download all? [y/N] ").strip().lower()
-    if resp != "y":
-        raise SystemExit("Cancelled by user.")
-
     cache_dir.mkdir(parents=True, exist_ok=True)
     console.log(f"Downloading (or re-using) files → {cache_dir}")
 
-    # Check cache integrity before download if verification is enabled
+    granules_to_download: List[Any] = []
+
     if verify_sizes:
-        # Create list to track files that need to be (re)downloaded
-        granules_to_download = []
         for g in granules:
             expected_size = _size_mb_to_bytes(g.size())
             local_path = cache_dir / Path(g.data_links()[0]).name
-            
+
             needs_download = True
             if local_path.exists():
                 actual_size = local_path.stat().st_size
-                # Calculate the percentage difference
-                if expected_size > 0:  # Avoid division by zero
+                if expected_size > 0:
                     pct_diff = abs(actual_size - expected_size) / expected_size * 100
-                    
-                    # Is the size within tolerance?
                     if pct_diff <= size_tolerance_pct:
                         console.log(f"[green]Verified cached file: {local_path.name}")
                         needs_download = False
                     else:
-                        # Check if file is significantly smaller (likely incomplete)
-                        if actual_size < expected_size * 0.9:  # More than 10% smaller
-                            console.log(f"[yellow]File likely incomplete: {local_path.name}: "
-                                       f"expected {expected_size} bytes, got {actual_size} bytes "
-                                       f"({pct_diff:.2f}% difference)")
+                        if actual_size < expected_size * 0.9:
+                            console.log(
+                                f"[yellow]File likely incomplete: {local_path.name}: "
+                                f"expected {expected_size} bytes, got {actual_size} bytes "
+                                f"({pct_diff:.2f}% difference)"
+                            )
                             local_path.unlink()
                         else:
-                            console.log(f"[yellow]Size difference outside tolerance for {local_path.name}: "
-                                       f"{pct_diff:.2f}% difference, expected {expected_size} bytes, "
-                                       f"got {actual_size} bytes")
+                            console.log(
+                                f"[yellow]Size difference outside tolerance for {local_path.name}: "
+                                f"{pct_diff:.2f}% difference, expected {expected_size} bytes, "
+                                f"got {actual_size} bytes"
+                            )
                             local_path.unlink()
-            
+
             if needs_download:
                 granules_to_download.append(g)
-        
-        if granules_to_download:
-            console.log(f"Downloading {len(granules_to_download)} files that need to be updated")
-            earthaccess.download(granules_to_download, cache_dir, threads=threads)
     else:
-        # Regular download - earthaccess will skip existing files
-        earthaccess.download(granules, cache_dir, threads=threads)
+        for g in granules:
+            local_path = cache_dir / Path(g.data_links()[0]).name
+            if not local_path.exists():
+                granules_to_download.append(g)
+
+    if granules_to_download:
+        to_dl_bytes = sum(_size_mb_to_bytes(g.size()) for g in granules_to_download)
+        console.log(
+            f"{len(granules_to_download)} files need download "
+            f"({to_dl_bytes/1_048_576:,.1f} MiB)"
+        )
+        resp = input("Download missing files? [y/N] ").strip().lower()
+        if resp == "y":
+            earthaccess.download(granules_to_download, cache_dir, threads=threads)
+        else:
+            raise SystemExit("Cancelled by user.")
+    else:
+        console.log("All granules already downloaded")
 
     # Get list of all local files regardless of how they were obtained
     local_paths = [cache_dir / Path(g.data_links()[0]).name for g in granules]
