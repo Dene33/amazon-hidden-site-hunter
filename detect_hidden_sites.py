@@ -47,27 +47,18 @@ EARTHDATA_VERSION= "002"
 
 def ensure_earthdata_login() -> None:
     """Login using ~/.netrc if available, otherwise prompt the user."""
+    console.print("[yellow]Earthdata login required")
     try:
         earthaccess.login(strategy="netrc", persist=False)
+        console.print("[green]Logged in successfully using ~/.netrc")
         return
-    except Exception:
-        pass
+    except Exception as e:
+        console.print(f"[red]Failed to load credentials: {escape(str(e))}")        
+    console.print("No ~/.netrc found or login failed, prompting for credentials")
 
-    console.print("[yellow]Earthdata login required")
-    user = input("Username: ")
-    password = getpass("Password: ")
-    earthaccess.login(user, password, persist=False)
-
-    netrc_path = Path.home() / ".netrc"
-    if not netrc_path.exists():
-        save = input("Save credentials to ~/.netrc? [y/N] ").strip().lower()
-        if save == "y":
-            with open(netrc_path, "a") as fp:
-                fp.write(
-                    f"machine urs.earthdata.nasa.gov login {user} password {password}\n"
-                )
-            os.chmod(netrc_path, 0o600)
-            console.print(f"[green]Credentials saved to {netrc_path}")
+    persist = input("Use persistent login (save credentials to ~/.netrc)? [y/N] ").strip().lower() == "y"
+    
+    earthaccess.login(persist=persist, strategy="interactive")
 
 
 def cop_tile_url(lat: float, lon: float) -> str:
@@ -76,56 +67,6 @@ def cop_tile_url(lat: float, lon: float) -> str:
     lat_s, lon_s = f"{abs(lat_sw):02d}_00", f"{abs(lon_sw):03d}_00"
     stem = f"Copernicus_DSM_COG_30_{ns}{lat_s}_{ew}{lon_s}_DEM"
     return f"{COP_DEM_BASE}/{stem}/{stem}.tif"
-
-
-# def fetch_cop_tiles(bbox: Tuple[float, float, float, float], out_dir: Path) -> Path:
-#     xmin, ymin, xmax, ymax = bbox
-#     lat_rng = range(int(math.floor(ymin)), int(math.ceil(ymax)) + 1)
-#     lon_rng = range(int(math.floor(xmin)), int(math.ceil(xmax)) + 1)
-
-#     tif_paths: List[Path] = []
-#     for lat in lat_rng:
-#         for lon in lon_rng:
-#             url   = cop_tile_url(lat, lon)
-#             local = out_dir / Path(url).name
-#             if not local.exists():
-#                 console.log(f"Fetching {url}")
-#                 try:
-#                     with requests.get(url, stream=True, timeout=60) as r:
-#                         r.raise_for_status()
-#                         with open(local, "wb") as fp:
-#                             for chunk in r.iter_content(131_072):
-#                                 fp.write(chunk)
-#                 except requests.HTTPError as exc:
-#                     console.log(f"[red]Failed {url}: {exc.response.status_code}")
-#                     continue
-#             tif_paths.append(local)
-
-#     if not tif_paths:
-#         raise RuntimeError("No Copernicus DEM tiles fetched; check bbox.")
-
-#     console.log("Merging DEM tiles → single raster")
-#     srcs = [rio.open(str(p)) for p in tif_paths]
-#     mosaic, transform = merge.merge(srcs)
-#     meta = srcs[0].meta.copy()
-#     meta.update(height=mosaic.shape[1], width=mosaic.shape[2], transform=transform)
-
-#     # Add the bbox of the mosaic to the metadata
-    
-#     # print(float(meta["transform"][2]),)
-#     # print(float(meta["transform"][5] + meta["transform"][4] * meta["height"]),)
-#     # print(float(meta["transform"][2] + meta["transform"][0] * meta["width"]),)
-#     # print(float(meta["transform"][5]),)
-    
-#     # print(f"Mosaic bounds: {meta['bounds']}")
-
-#     dem_path = out_dir / "cop90_mosaic.tif"
-#     with rio.open(dem_path, "w", **meta) as dst:
-#         dst.write(mosaic)
-#     for s in srcs:
-#         s.close()
-#     return dem_path
-
 
 
 def fetch_cop_tiles(bbox: tuple[float, float, float, float], out_dir: Path) -> Path:
@@ -145,8 +86,8 @@ def fetch_cop_tiles(bbox: tuple[float, float, float, float], out_dir: Path) -> P
                 if all(abs(s - b) < 1e-6 for s, b in zip(bounds, bbox)):
                     console.log(f"[green]Using existing DEM mosaic → {dem_path}")
                     return dem_path
-        except Exception:
-            pass
+        except Exception as e:
+            console.log(f"[yellow]Failed to read existing DEM: {escape(str(e))}")           
 
     lat_rng = range(int(math.floor(ymin)), int(math.ceil(ymax)) + 1)
     lon_rng = range(int(math.floor(xmin)), int(math.ceil(xmax)) + 1)
