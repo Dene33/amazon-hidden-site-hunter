@@ -1,6 +1,6 @@
 # Example configuration for the refactored pipeline
 
-bbox: [-65.0, -10.0, -64.5, -9.5]
+bbox: [-64.651794, -15.010122, -64.572144, -14.952414]
 out_dir: example_output
 
 step1:
@@ -9,8 +9,8 @@ step1:
     enabled: true
   fetch_gedi_points:
     enabled: true
-    time_start: '2020-01-01'
-    time_end: '2021-01-01'
+    time_start: '2017-01-01'
+    time_end: '2025-01-01'
   visualize: true
 
 step2:
