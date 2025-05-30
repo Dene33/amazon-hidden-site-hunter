@@ -157,6 +157,22 @@ def _size_mb_to_bytes(mb) -> int:
     return int(float(mb) * 1_048_576) if mb else 0
 
 
+def _read_gedi_var(ds, coerce_float=True):
+    """Return array with scale/offset applied and _FillValue set to NaN."""
+    arr = ds[:].astype(np.float32 if coerce_float else ds.dtype)
+
+    scale = ds.attrs.get("scale_factor", 1.0)
+    offset = ds.attrs.get("add_offset", 0.0)
+    if scale != 1 or offset != 0:
+        arr = arr * scale + offset
+
+    fill = ds.attrs.get("_FillValue")
+    if fill is not None:
+        arr = np.where(arr == (fill * scale + offset), np.nan, arr)
+
+    return arr
+
+
 def fetch_gedi_points(
     bbox: Tuple[float, float, float, float],
     *,
@@ -251,16 +267,33 @@ def fetch_gedi_points(
         if not p.exists():
             console.log(f"[red]Missing file: {p.name}")
             continue
-            
+
         try:
             with h5py.File(p, "r") as h5:
                 for beam in [k for k in h5 if k.startswith("BEAM")]:
-                    lat  = h5[f"{beam}/lat_lowestmode"][:]
-                    lon  = h5[f"{beam}/lon_lowestmode"][:]
-                    elev = h5[f"{beam}/elev_lowestmode"][:]
-                    m = (lon >= xmin) & (lon <= xmax) & (lat >= ymin) & (lat <= ymax)
+                    lat  = _read_gedi_var(h5[f"{beam}/lat_lowestmode"])
+                    lon  = _read_gedi_var(h5[f"{beam}/lon_lowestmode"])
+                    elev = _read_gedi_var(h5[f"{beam}/elev_lowestmode"])
+                    qflag = _read_gedi_var(
+                        h5[f"{beam}/quality_flag"], coerce_float=False
+                    )
+                    m = (
+                        (lon >= xmin)
+                        & (lon <= xmax)
+                        & (lat >= ymin)
+                        & (lat <= ymax)
+                        & (qflag == 1)
+                    )
                     if m.any():
-                        rows.append(pd.DataFrame({"lat": lat[m], "lon": lon[m], "elev": elev[m]}))
+                        rows.append(
+                            pd.DataFrame(
+                                {
+                                    "lat": lat[m].astype(float),
+                                    "lon": lon[m].astype(float),
+                                    "elev": elev[m].astype(float),
+                                }
+                            )
+                        )
         except Exception as exc:
             console.log(f"[red]Skipped {p.name}: {escape(str(exc))}")
             # Mark file as corrupted by renaming
