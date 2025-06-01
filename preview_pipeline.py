@@ -702,9 +702,23 @@ def visualize_anomalies(anomalies, rrm, xi, yi, sigma, geojson_path, outdir):
     print(f"Saved anomaly visualization to {out_path}")
     return anomalies
 
-def create_interactive_map(points, anomalies, bbox, outdir):
-    """Create an interactive map with all layers"""
-    if not points and anomalies is None:
+def create_interactive_map(points, anomalies, bbox, outdir, include_data_vis=False):
+    """Create an interactive map with pipeline results.
+
+    Parameters
+    ----------
+    points : list | None
+        Ignored but kept for backwards compatibility.
+    anomalies : GeoDataFrame | None
+        Detected anomalies to plot.
+    bbox : tuple
+        (xmin, ymin, xmax, ymax) in lon/lat.
+    outdir : str or Path
+        Directory containing the generated PNG images.
+    include_data_vis : bool, default False
+        If True, include the additional reference layers from ``data_vis``.
+    """
+    if anomalies is None and not Path(outdir).exists():
         print("No data for interactive map")
         return
     
@@ -712,8 +726,12 @@ def create_interactive_map(points, anomalies, bbox, outdir):
     center_lat = (ymin + ymax) / 2
     center_lon = (xmin + xmax) / 2
     
-    # Create map
-    map_obj = folium.Map(location=[center_lat, center_lon], zoom_start=10)
+    # Create base map, optionally using the data_vis map
+    if include_data_vis:
+        from data_vis import main as data_vis_main
+        map_obj = data_vis_main()
+    else:
+        map_obj = folium.Map(location=[center_lat, center_lon], zoom_start=10)
     
     # Add bounding box
     folium.Rectangle(
@@ -726,33 +744,18 @@ def create_interactive_map(points, anomalies, bbox, outdir):
         name="Bounding Box"
     ).add_to(map_obj)
     
-    # Add GEDI points if available
-    if points:
-        # Create point cluster
-        marker_cluster = MarkerCluster(name="GEDI Points").add_to(map_obj)
-        
-        # Add points to the map
-        for lat, lon, elev in points:  # Limit for better performance
-            folium.CircleMarker(
-                location=[lat, lon],
-                radius=2,
-                color='green',
-                fill=True,
-                fill_color='green',
-                fill_opacity=0.7,
-                popup=f"Elev: {elev:.2f}m"
-            ).add_to(marker_cluster)
-        
-        # Also add heatmap for better visualization
-        heat_data = [[lat, lon] for lat, lon, _ in points[:10000]]
-        heatmap_layer = folium.FeatureGroup(name="GEDI Heatmap (density)")
-        HeatMap(
-            heat_data,
-            radius=10,
-            blur=15,
-            max_zoom=13
-        ).add_to(heatmap_layer)
-        heatmap_layer.add_to(map_obj)
+
+    # Add generated images as overlays
+    outdir = Path(outdir)
+    for img_path in sorted(outdir.glob("*.png")):
+        bounds = [[ymin, xmin], [ymax, xmax]]
+        folium.raster_layers.ImageOverlay(
+            image=str(img_path.resolve()),
+            bounds=bounds,
+            opacity=0.7,
+            name=img_path.stem,
+            interactive=True,
+        ).add_to(map_obj)
     
     # Add anomalies if available
     if anomalies is not None and not anomalies.empty:
