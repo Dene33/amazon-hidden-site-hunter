@@ -327,7 +327,7 @@ def visualize_copernicus_dem(
         project=True,
         bare=False,
         dpi=150,
-        subsample=4,
+        subsample=1,
         cmap=plt.cm.terrain,
         azdeg=315, altdeg=45,
         vert_exag=5,
@@ -390,10 +390,11 @@ def visualize_copernicus_dem(
     if valid.size:
         mean_elev = float(np.nanmean(valid))
         std_elev = float(np.nanstd(valid))
+        range_pad = 2 * std_elev
         if max_elev is None:
-            max_elev = mean_elev + std_elev
+            max_elev = mean_elev + (range_pad * 2)
         if min_elev is None:
-            min_elev = mean_elev - std_elev
+            min_elev = mean_elev - range_pad
 
     # ─── 2. colour stretch & hill-shade ──────────────────────────────────────
     if max_elev is not None:
