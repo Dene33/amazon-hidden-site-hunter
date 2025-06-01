@@ -749,13 +749,23 @@ def create_interactive_map(points, anomalies, bbox, outdir, include_data_vis=Fal
     outdir = Path(outdir)
     for img_path in sorted(outdir.glob("*.png")):
         bounds = [[ymin, xmin], [ymax, xmax]]
+
+        # Wrap each overlay in a FeatureGroup so LayerControl shows a checkbox
+        img_group = folium.FeatureGroup(
+            name=f"Image: {img_path.stem}",
+            show=False,
+        )
+
         folium.raster_layers.ImageOverlay(
             image=str(img_path.resolve()),
             bounds=bounds,
             opacity=0.7,
             name=img_path.stem,
             interactive=True,
-        ).add_to(map_obj)
+            control=True,
+        ).add_to(img_group)
+
+        img_group.add_to(map_obj)
     
     # Add anomalies if available
     if anomalies is not None and not anomalies.empty:
