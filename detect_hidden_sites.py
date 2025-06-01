@@ -29,6 +29,7 @@ from scipy.ndimage import gaussian_filter
 from shapely.geometry import Point
 from skimage.measure import label, regionprops
 from rich.markup import escape
+import matplotlib.pyplot as plt
 
 import earthaccess, h5py, requests
 from scipy.spatial import cKDTree
@@ -44,6 +45,16 @@ EARTHDATA_SHORT  = "GEDI02_A"
 EARTHDATA_VERSION= "002"
 # ──────────────────────────────────────────────────────────────────
 
+def _nan_gaussian_filter(arr: np.ndarray, sigma: float) -> np.ndarray:
+    """Gaussian filter that ignores NaN values."""
+    valid = np.isfinite(arr)
+    arr_filled = np.where(valid, arr, 0.0)
+    smoothed = gaussian_filter(arr_filled, sigma=sigma)
+    weights = gaussian_filter(valid.astype(float), sigma=sigma)
+    with np.errstate(invalid="ignore"):
+        smoothed = smoothed / weights
+    smoothed[weights == 0] = np.nan
+    return smoothed
 
 def ensure_earthdata_login() -> None:
     """Login using ~/.netrc if available, otherwise prompt the user."""
@@ -431,21 +442,96 @@ def residual_relief(bearth, dem_path: Path):
     return rrm
 
 
-def detect_anomalies(rrm, xi, yi, sigma=2, amp_thresh=1.0, size_thresh_m=200):
-    rrm_smooth = gaussian_filter(rrm, sigma=sigma)
+def detect_anomalies(
+    rrm,
+    xi,
+    yi,
+    sigma: float = 2,
+    amp_thresh: float = 1.0,
+    size_thresh_m: float = 200,
+    debug_dir: Path | None = None,
+):
+    """Identify potential anomalies in the residual relief model."""
+
+    rrm_smooth = _nan_gaussian_filter(rrm, sigma=sigma)
     mask = np.abs(rrm_smooth) >= amp_thresh
-    lbl  = label(mask)
-    cell_deg2 = (xi[0,1]-xi[0,0]) * (yi[1,0]-yi[0,0])
-    blobs=[]
+    lbl = label(mask)
+
+    cell_deg2 = (xi[0, 1] - xi[0, 0]) * (yi[1, 0] - yi[0, 0])
+    blobs = []
+    extent = [xi.min(), xi.max(), yi.min(), yi.max()]
+
     for reg in regionprops(lbl):
         area_m2 = reg.area * (111_320**2) * cell_deg2
-        if area_m2 < size_thresh_m**2: continue
+        if area_m2 < size_thresh_m**2:
+            continue
         cy, cx = reg.centroid
         lon = float(np.interp(cx, np.arange(xi.shape[1]), xi[0]))
-        lat = float(np.interp(cy, np.arange(yi.shape[0]), yi[:,0]))
+        lat = float(np.interp(cy, np.arange(yi.shape[0]), yi[:, 0]))
         score = float(np.nanmax(np.abs(rrm_smooth[reg.slice])))
         blobs.append({"geometry": Point(lon, lat), "score": score})
+
+    if debug_dir is not None:
+        debug_dir = Path(debug_dir)
+        debug_dir.mkdir(parents=True, exist_ok=True)
+
+        plt.figure(figsize=(8, 6))
+        plt.imshow(
+            rrm_smooth,
+            extent=extent,
+            origin="upper",
+            cmap="RdBu_r",
+        )
+        plt.colorbar(label="Smoothed residual (m)")
+        plt.title("Smoothed Residual Relief")
+        plt.xlabel("Longitude")
+        plt.ylabel("Latitude")
+        plt.savefig(debug_dir / "rrm_smooth.png", dpi=150, bbox_inches="tight")
+        plt.close()
+
+        plt.figure(figsize=(8, 6))
+        plt.imshow(mask, extent=extent, origin="upper", cmap="gray")
+        plt.title("Threshold Mask")
+        plt.xlabel("Longitude")
+        plt.ylabel("Latitude")
+        plt.savefig(debug_dir / "threshold_mask.png", dpi=150, bbox_inches="tight")
+        plt.close()
+
+        if blobs:
+            plt.figure(figsize=(8, 6))
+            plt.imshow(
+                rrm_smooth,
+                extent=extent,
+                origin="upper",
+                cmap="RdBu_r",
+            )
+            xs = [b["geometry"].x for b in blobs]
+            ys = [b["geometry"].y for b in blobs]
+            plt.scatter(xs, ys, c="yellow", edgecolor="black", s=30)
+            plt.title("Detected Anomalies")
+            plt.xlabel("Longitude")
+            plt.ylabel("Latitude")
+            plt.savefig(debug_dir / "anomalies.png", dpi=150, bbox_inches="tight")
+            plt.close()
+
     return gpd.GeoDataFrame(blobs, crs="EPSG:4326")
+
+
+# def detect_anomalies(rrm, xi, yi, sigma=2, amp_thresh=1.0, size_thresh_m=200):
+#     rrm_smooth = gaussian_filter(rrm, sigma=sigma)
+#     mask = np.abs(rrm_smooth) >= amp_thresh
+#     lbl  = label(mask)
+#     cell_deg2 = (xi[0,1]-xi[0,0]) * (yi[1,0]-yi[0,0])
+#     blobs=[]
+#     for reg in regionprops(lbl):
+#         area_m2 = reg.area * (111_320**2) * cell_deg2
+#         if area_m2 < size_thresh_m**2: continue
+#         cy, cx = reg.centroid
+#         lon = float(np.interp(cx, np.arange(xi.shape[1]), xi[0]))
+#         lat = float(np.interp(cy, np.arange(yi.shape[0]), yi[:,0]))
+#         score = float(np.nanmax(np.abs(rrm_smooth[reg.slice])))
+#         blobs.append({"geometry": Point(lon, lat), "score": score})
+#     return gpd.GeoDataFrame(blobs, crs="EPSG:4326")
 
 
 # ───────── main CLI ─────────

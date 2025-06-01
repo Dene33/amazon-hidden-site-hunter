@@ -627,7 +627,7 @@ def visualize_residual_relief(xi, yi, zi, dem_path, outdir):
     print(f"Saved residual relief visualization to {out_path}")
     return rrm
 
-def visualize_anomalies(rrm, xi, yi, sigma, geojson_path, outdir):
+def visualize_anomalies(anomalies, rrm, xi, yi, sigma, geojson_path, outdir):
     """Visualize the detected anomalies"""
     if rrm is None:
         print("No residual relief model for anomaly detection")
@@ -636,7 +636,7 @@ def visualize_anomalies(rrm, xi, yi, sigma, geojson_path, outdir):
     print("Detecting and visualizing anomalies...")
     
     # Detect anomalies
-    anomalies = detect_anomalies(rrm, xi, yi, sigma=sigma)
+    # anomalies = detect_anomalies(rrm, xi, yi, sigma=sigma)
     
     # Create figure
     fig, ax = plt.subplots(figsize=(12, 10))

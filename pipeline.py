@@ -131,9 +131,10 @@ def step_detect_anomalies(cfg: Dict[str, Any], rrm, xi, yi, base: Path):
         sigma=cfg.get("sigma", 2),
         amp_thresh=cfg.get("amp_thresh", 1.0),
         size_thresh_m=cfg.get("size_thresh_m", 200),
+        debug_dir=(base / "debug") if cfg.get("debug", False) else None,
     )
     if cfg.get("visualize", True):
-        visualize_anomalies(rrm, xi, yi, cfg.get("sigma", 2), None, base)
+        visualize_anomalies(anomalies, rrm, xi, yi, cfg.get("sigma", 2), None, base)
     if cfg.get("save_json", True):
         out = base / "anomalies.geojson"
         anomalies.to_file(out, driver="GeoJSON")

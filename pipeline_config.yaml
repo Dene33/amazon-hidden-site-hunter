@@ -24,11 +24,12 @@ step3:
 
 step4:
   enabled: true
-  sigma: 2
-  amp_thresh: 1.0
-  size_thresh_m: 200
+  sigma: .002
+  amp_thresh: 25
+  size_thresh_m: 1
   visualize: true
   save_json: true
+  debug: true
 
 step5:
-  enabled: true
+  enabled: false
