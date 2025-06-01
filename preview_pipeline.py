@@ -553,7 +553,7 @@ def visualize_bare_earth(points, bbox, resolution, outdir):
     
     # Plot the interpolated surface
     extent = [np.min(xi), np.max(xi), np.min(yi), np.max(yi)]
-    im = ax.imshow(rgb, extent=extent, origin='lower')
+    im = ax.imshow(rgb, extent=extent, origin='upper')
     
     # Add colorbar
     divider = make_axes_locatable(ax)
@@ -646,7 +646,7 @@ def visualize_anomalies(rrm, xi, yi, sigma, geojson_path, outdir):
     vmax = max(abs(np.nanmin(rrm)), abs(np.nanmax(rrm)))
     vmin = -vmax
     
-    im = ax.imshow(rrm, extent=extent, origin='lower', 
+    im = ax.imshow(rrm, extent=extent, origin='upper', 
                  cmap='RdBu_r', vmin=vmin, vmax=vmax, alpha=0.7)
     
     # Plot detected anomalies
