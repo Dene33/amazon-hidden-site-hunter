@@ -327,14 +327,19 @@ def visualize_copernicus_dem(
         project=True,
         bare=False,
         dpi=150,
-        subsample=4,
+        subsample=1,
         cmap=plt.cm.terrain,
         azdeg=315, altdeg=45,
         vert_exag=5,
         max_elev=None,
-        min_elev=0,
+        min_elev=None,
         upscale=3,                 # ← ADDED: blow-up tiny AOIs for print
 ):
+    """Render a Copernicus DEM with hillshading.
+
+    When ``min_elev`` or ``max_elev`` are not provided they are estimated from
+    the DEM as mean ± one standard deviation to improve contrast.
+    """
     dem_path = Path(dem_path)
     if not dem_path.exists():
         raise FileNotFoundError(dem_path)
@@ -380,11 +385,24 @@ def visualize_copernicus_dem(
             bounds = src.bounds
             extent = [bounds.left, bounds.right, bounds.bottom, bounds.top]
 
+    # estimate elevation range if not provided
+    valid = dem[~np.isnan(dem)]
+    if valid.size:
+        mean_elev = float(np.nanmean(valid))
+        std_elev = float(np.nanstd(valid))
+        range_pad = 2 * std_elev
+        if max_elev is None:
+            max_elev = mean_elev + (range_pad * 2)
+        if min_elev is None:
+            min_elev = mean_elev - range_pad
+
     # ─── 2. colour stretch & hill-shade ──────────────────────────────────────
     if max_elev is not None:
         dem = np.clip(dem, None, max_elev)
+    if min_elev is not None:
+        dem = np.clip(dem, min_elev, None)
 
-    vmin = min_elev
+    vmin = min_elev if min_elev is not None else np.nanmin(dem)
     vmax = max_elev if max_elev is not None else np.nanmax(dem)
     norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
 
@@ -790,8 +808,8 @@ def main():
     
     # Visualize each step
 
-    dem = visualize_copernicus_dem(args.dem, args.bbox, outdir, bare=False, dpi=1200, project=True, max_elev=220, min_elev=140, subsample=1)
-    dem = visualize_copernicus_dem(args.dem, args.bbox, outdir, bare=True, dpi=1200, project=True, max_elev=220, min_elev=140, subsample=1)
+    dem = visualize_copernicus_dem(args.dem, args.bbox, outdir, bare=False, dpi=1200, project=True, subsample=1)
+    dem = visualize_copernicus_dem(args.dem, args.bbox, outdir, bare=True, dpi=1200, project=True, subsample=1)
     visualize_gedi_points(points, args.bbox, outdir)
     xi, yi, zi = visualize_bare_earth(points, args.bbox, args.resolution, outdir)
     rrm = visualize_residual_relief(xi, yi, zi, args.dem, outdir)
