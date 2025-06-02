@@ -345,10 +345,29 @@ def create_combined_map(arch_dataframes, lidar_df, image_files):
     ).add_to(m)
 
     # (Optional) keep your other base maps as alternatives
-    folium.TileLayer("CartoDB positron", name="Carto Light", overlay=False).add_to(m)
+    folium.TileLayer(
+        "CartoDB positron",
+        name="Carto Light",
+        overlay=False,
+        control=True,
+        show=False,
+    ).add_to(m)
     folium.TileLayer(
         tiles="https://stamen-tiles-{s}.a.ssl.fastly.net/terrain/{z}/{x}/{y}.png",
-        attr="Map tiles by Stamen", name="Stamen Terrain", overlay=False
+        attr="Map tiles by Stamen",
+        name="Stamen Terrain",
+        overlay=False,
+        control=True,
+        show=False,
+    ).add_to(m)
+
+    # OpenStreetMap as an additional base map option
+    folium.TileLayer(
+        tiles="OpenStreetMap",
+        name="OpenStreetMap",
+        overlay=False,
+        control=True,
+        show=False,
     ).add_to(m)
 
     # """Create a single interactive map with archaeological sites, LiDAR coverage, and image overlays."""
@@ -376,10 +395,6 @@ def create_combined_map(arch_dataframes, lidar_df, image_files):
     #     control=True
     # ).add_to(m)
     
-    folium.TileLayer(
-        tiles='OpenStreetMap',
-        name='OpenStreetMap'
-    ).add_to(m)
     
     # Add image overlays with transparency controls
     for img_path in image_files:
@@ -387,7 +402,9 @@ def create_combined_map(arch_dataframes, lidar_df, image_files):
         img_name_simple = os.path.splitext(img_name)[0]
         
         # Create a feature group for this image
-        img_group = folium.FeatureGroup(name=f"Image: {img_name_simple}", show=False)
+        img_group = folium.FeatureGroup(
+            name=f"Image: {img_name_simple}", show=False, control=True
+        )
         
         # Create the image overlay
         bounds = OVERLAY_BOUNDS
@@ -475,7 +492,7 @@ def create_combined_map(arch_dataframes, lidar_df, image_files):
     
     # Add LiDAR coverage data
     # Create group for LiDAR data
-    lidar_group = folium.FeatureGroup(name="LiDAR Coverage", show=False)
+    lidar_group = folium.FeatureGroup(name="LiDAR Coverage", show=False, control=True)
     
     # Dark mask of the total surveyed corridors
     if not lidar_df.empty:
@@ -493,7 +510,9 @@ def create_combined_map(arch_dataframes, lidar_df, image_files):
     
         # Add each tile as a thin red outline, grouping by flight-year
         for yr, grp in lidar_df.groupby(lidar_df["created"].str[-4:]):      # pulls "2017","2018" from 214/2017
-            year_layer = folium.FeatureGroup(name=f"LiDAR Tiles {yr}", show=False)
+            year_layer = folium.FeatureGroup(
+                name=f"LiDAR Tiles {yr}", show=False, control=True
+            )
             for _, r in grp.iterrows():
                 folium.GeoJson(
                     data=r["geometry"].__geo_interface__,
@@ -607,7 +626,9 @@ def create_combined_map(arch_dataframes, lidar_df, image_files):
     left_lon   = OVERLAY_BOUNDS_CLEAN[0][1]   # −80 °  W
     right_lon  = OVERLAY_BOUNDS_CLEAN[2][1]   # −45 °  W
 
-    coord_fg = folium.FeatureGroup(name="Coordinate lines", show=True)
+    coord_fg = folium.FeatureGroup(
+        name="Coordinate lines", show=True, control=True
+    )
 
     # Left (west) meridian
     folium.PolyLine(
