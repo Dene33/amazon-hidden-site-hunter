@@ -489,6 +489,17 @@ def detect_anomalies(
         plt.savefig(debug_dir / "rrm_smooth.png", dpi=150, bbox_inches="tight")
         plt.close()
 
+        fig_c, ax_c = plt.subplots(figsize=(8, 8))
+        ax_c.imshow(rrm_smooth, extent=extent, origin="upper", cmap="RdBu_r")
+        ax_c.axis("off")
+        plt.savefig(
+            debug_dir / "rrm_smooth_clean.png",
+            dpi=150,
+            bbox_inches="tight",
+            pad_inches=0,
+        )
+        plt.close(fig_c)
+
         plt.figure(figsize=(8, 6))
         plt.imshow(mask, extent=extent, origin="upper", cmap="gray")
         plt.title("Threshold Mask")
@@ -496,6 +507,17 @@ def detect_anomalies(
         plt.ylabel("Latitude")
         plt.savefig(debug_dir / "threshold_mask.png", dpi=150, bbox_inches="tight")
         plt.close()
+
+        fig_c, ax_c = plt.subplots(figsize=(8, 8))
+        ax_c.imshow(mask, extent=extent, origin="upper", cmap="gray")
+        ax_c.axis("off")
+        plt.savefig(
+            debug_dir / "threshold_mask_clean.png",
+            dpi=150,
+            bbox_inches="tight",
+            pad_inches=0,
+        )
+        plt.close(fig_c)
 
         if blobs:
             plt.figure(figsize=(8, 6))
@@ -513,6 +535,18 @@ def detect_anomalies(
             plt.ylabel("Latitude")
             plt.savefig(debug_dir / "anomalies.png", dpi=150, bbox_inches="tight")
             plt.close()
+
+            fig_c, ax_c = plt.subplots(figsize=(8, 8))
+            ax_c.imshow(rrm_smooth, extent=extent, origin="upper", cmap="RdBu_r")
+            ax_c.scatter(xs, ys, c="yellow", edgecolor="black", s=30)
+            ax_c.axis("off")
+            plt.savefig(
+                debug_dir / "anomalies_clean.png",
+                dpi=150,
+                bbox_inches="tight",
+                pad_inches=0,
+            )
+            plt.close(fig_c)
 
     return gpd.GeoDataFrame(blobs, crs="EPSG:4326")
 

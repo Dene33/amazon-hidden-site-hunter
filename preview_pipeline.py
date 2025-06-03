@@ -20,6 +20,7 @@ from rasterio.warp import calculate_default_transform, reproject, Resampling
 import h5py
 from pathlib import Path
 import geopandas as gpd
+import pandas as pd
 from shapely.geometry import Point, box
 from folium.plugins import MarkerCluster, HeatMap
 import matplotlib as mpl
@@ -422,7 +423,16 @@ def visualize_copernicus_dem(
 
     fig = plt.figure(figsize=fig_size, dpi=dpi)
     ax = fig.add_axes([0, 0, 1, 1]) if bare else fig.add_subplot(111)
-    ax.imshow(rgb, extent=extent, origin="upper") 
+    ax.imshow(rgb, extent=extent, origin="upper")
+
+    if bbox:
+        xmin_b, ymin_b, xmax_b, ymax_b = bbox
+        if project:
+            t = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+            xmin_b, ymin_b = t.transform(xmin_b, ymin_b)
+            xmax_b, ymax_b = t.transform(xmax_b, ymax_b)
+        ax.set_xlim(xmin_b, xmax_b)
+        ax.set_ylim(ymin_b, ymax_b)
 
     if bare:
         ax.axis("off")
@@ -469,7 +479,14 @@ def visualize_copernicus_dem(
 
 
 def visualize_gedi_points(points, bbox, outdir):
-    """Visualize the GEDI points"""
+    """Visualize the GEDI points.
+
+    Two images are produced:
+
+    ``2_gedi_points.png`` – standard version with legend and axes.
+    ``2_gedi_points_clean.png`` – cropped version without legend for
+    interactive map overlays.
+    """
     if not points:
         print("No GEDI points to visualize")
         return None
@@ -481,7 +498,7 @@ def visualize_gedi_points(points, bbox, outdir):
     lons = [p[1] for p in points]
     elevs = [p[2] for p in points]
     
-    # Create figure
+    # Create figure for the regular version
     fig, ax = plt.subplots(figsize=(12, 10))
     
     # Plot points colored by elevation
@@ -504,21 +521,34 @@ def visualize_gedi_points(points, bbox, outdir):
     ax.set_xlabel('Longitude')
     ax.set_ylabel('Latitude')
     ax.legend()
-    
-    # Set axis limits to bbox
+
     ax.set_xlim(xmin, xmax)
     ax.set_ylim(ymin, ymax)
-    
-    # Save the figure
+
     out_path = Path(outdir) / "2_gedi_points.png"
     plt.savefig(out_path, dpi=300, bbox_inches='tight')
-    plt.close()
-    
+    plt.close(fig)
     print(f"Saved GEDI points visualization to {out_path}")
+
+    # ----- clean version for map overlays -----
+    fig2, ax2 = plt.subplots(figsize=(8, 8))
+    ax2.scatter(lons, lats, c=elevs, cmap='viridis', s=2, alpha=0.7,
+                edgecolors='none')
+    ax2.set_xlim(xmin, xmax)
+    ax2.set_ylim(ymin, ymax)
+    ax2.axis('off')
+    out_path_clean = Path(outdir) / "2_gedi_points_clean.png"
+    plt.savefig(out_path_clean, dpi=300, bbox_inches='tight', pad_inches=0)
+    plt.close(fig2)
+    print(f"Saved GEDI overlay to {out_path_clean}")
     return True
 
 def visualize_bare_earth(points, bbox, resolution, outdir):
-    """Visualize the interpolated bare-earth surface"""
+    """Visualize the interpolated bare-earth surface.
+
+    Creates ``3_bare_earth_surface.png`` with legend and
+    ``3_bare_earth_surface_clean.png`` cropped for overlays.
+    """
     if not points:
         print("No GEDI points for bare-earth interpolation")
         return None
@@ -534,8 +564,10 @@ def visualize_bare_earth(points, bbox, resolution, outdir):
     
     # Perform interpolation
     xi, yi, zi = interpolate_bare_earth(gedi_df, bbox, resolution)
+
+    xmin, ymin, xmax, ymax = bbox
     
-    # Create figure
+    # Create figure for the regular version
     fig, ax = plt.subplots(figsize=(12, 10))
     
     # Create hillshade effect
@@ -566,16 +598,33 @@ def visualize_bare_earth(points, bbox, resolution, outdir):
     ax.set_xlabel('Longitude')
     ax.set_ylabel('Latitude')
     
-    # Save the figure
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+
     out_path = Path(outdir) / "3_bare_earth_surface.png"
     plt.savefig(out_path, dpi=300, bbox_inches='tight')
-    plt.close()
-    
+    plt.close(fig)
     print(f"Saved bare-earth visualization to {out_path}")
+
+    # ----- clean version for overlays -----
+    fig2, ax2 = plt.subplots(figsize=(8, 8))
+    ax2.imshow(rgb, extent=extent, origin='upper')
+    ax2.set_xlim(xmin, xmax)
+    ax2.set_ylim(ymin, ymax)
+    ax2.axis('off')
+    out_path_clean = Path(outdir) / "3_bare_earth_surface_clean.png"
+    plt.savefig(out_path_clean, dpi=300, bbox_inches='tight', pad_inches=0)
+    plt.close(fig2)
+    print(f"Saved bare-earth overlay to {out_path_clean}")
+
     return xi, yi, zi
 
 def visualize_residual_relief(xi, yi, zi, dem_path, outdir):
-    """Visualize the residual relief model"""
+    """Visualize the residual relief model.
+
+    Produces ``4_residual_relief.png`` and ``4_residual_relief_clean.png``
+    cropped for overlay use.
+    """
     if zi is None or dem_path is None:
         print("Missing data for residual relief model")
         return None
@@ -589,8 +638,11 @@ def visualize_residual_relief(xi, yi, zi, dem_path, outdir):
     
     # Calculate residual relief
     rrm = residual_relief((xi, yi, zi), dem_file)
+
+    xmin, xmax = np.min(xi), np.max(xi)
+    ymin, ymax = np.min(yi), np.max(yi)
     
-    # Create figure
+    # Create figure for the regular version
     fig, ax = plt.subplots(figsize=(12, 10))
     
     # Handle NaN values
@@ -619,12 +671,26 @@ def visualize_residual_relief(xi, yi, zi, dem_path, outdir):
     ax.set_xlabel('Longitude')
     ax.set_ylabel('Latitude')
     
-    # Save the figure
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
+
     out_path = Path(outdir) / "4_residual_relief.png"
     plt.savefig(out_path, dpi=300, bbox_inches='tight')
-    plt.close()
-    
+    plt.close(fig)
     print(f"Saved residual relief visualization to {out_path}")
+
+    # ----- clean version for overlays -----
+    fig2, ax2 = plt.subplots(figsize=(8, 8))
+    ax2.imshow(rrm_valid, extent=extent, origin='upper',
+               cmap='RdBu_r', vmin=vmin, vmax=vmax)
+    ax2.set_xlim(xmin, xmax)
+    ax2.set_ylim(ymin, ymax)
+    ax2.axis('off')
+    out_path_clean = Path(outdir) / "4_residual_relief_clean.png"
+    plt.savefig(out_path_clean, dpi=300, bbox_inches='tight', pad_inches=0)
+    plt.close(fig2)
+    print(f"Saved residual relief overlay to {out_path_clean}")
+
     return rrm
 
 def visualize_anomalies(anomalies, rrm, xi, yi, sigma, geojson_path, outdir):
@@ -717,95 +783,48 @@ def create_interactive_map(points, anomalies, bbox, outdir, include_data_vis=Fal
         Directory containing the generated PNG images.
     include_data_vis : bool, default False
         If True, include the additional reference layers from ``data_vis``.
+        Debug overlay images from ``outdir/debug`` are added automatically when
+        present.
     """
     if anomalies is None and not Path(outdir).exists():
         print("No data for interactive map")
         return
-    
-    xmin, ymin, xmax, ymax = bbox
-    center_lat = (ymin + ymax) / 2
-    center_lon = (xmin + xmax) / 2
-    
-    # Create base map, optionally using the data_vis map
-    if include_data_vis:
-        from data_vis import main as data_vis_main
-        map_obj = data_vis_main()
-    else:
-        map_obj = folium.Map(location=[center_lat, center_lon], zoom_start=10)
-    
-    # Add bounding box
-    folium.Rectangle(
-        bounds=[[ymin, xmin], [ymax, xmax]],
-        color='red',
-        fill=True,
-        fill_color='yellow',
-        fill_opacity=0.1,
-        tooltip="Area of Interest",
-        name="Bounding Box"
-    ).add_to(map_obj)
-    
 
-    # Add generated images as overlays
+    from data_vis import create_combined_map, load_reference_datasets
+
+    arch_dataframes = []
+    lidar_df = pd.DataFrame()
     outdir = Path(outdir)
-    for img_path in sorted(outdir.glob("*.png")):
-        bounds = [[ymin, xmin], [ymax, xmax]]
+    # Use only the clean images for overlays and include the DEM hillshade
+    image_files = []
+    hillshade = list(outdir.glob("copernicus_dem_hillshade*.png"))
+    if hillshade:
+        image_files.append(str(hillshade[0].resolve()))
+    image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("*_clean.png")))
 
-        # Wrap each overlay in a FeatureGroup so LayerControl shows a checkbox
-        img_group = folium.FeatureGroup(
-            name=f"Image: {img_path.stem}",
-            show=False,
+    debug_dir = outdir / "debug"
+    if debug_dir.exists():
+        image_files.extend(
+            str(p.resolve()) for p in sorted(debug_dir.glob("*_clean.png"))
         )
 
-        folium.raster_layers.ImageOverlay(
-            image=str(img_path.resolve()),
-            bounds=bounds,
-            opacity=0.7,
-            name=img_path.stem,
-            interactive=True,
-            control=True,
-        ).add_to(img_group)
+    if include_data_vis:
+        from data_vis import load_reference_datasets
+        ref_arch, ref_lidar, ref_images = load_reference_datasets()
+        arch_dataframes = ref_arch
+        lidar_df = ref_lidar
+        image_files.extend(ref_images)
 
-        img_group.add_to(map_obj)
-    
-    # Add anomalies if available
-    if anomalies is not None and not anomalies.empty:
-        anomalies_layer = folium.FeatureGroup(name="Detected Anomalies")
-        
-        # Function to get color based on score
-        def get_color(score):
-            if score > 5:
-                return '#FF0000'  # Red for high scores
-            elif score > 3:
-                return '#FFA500'  # Orange for medium scores
-            else:
-                return '#FFFF00'  # Yellow for low scores
-        
-        # Add each anomaly point
-        for idx, row in anomalies.iterrows():
-            # Get geometry and score
-            point = row.geometry
-            score = row.get('score', 0)
-            
-            # Create a circle marker
-            folium.CircleMarker(
-                location=[point.y, point.x],
-                radius=8,
-                color=get_color(score),
-                fill=True,
-                fill_color=get_color(score),
-                fill_opacity=0.7,
-                tooltip=f"Anomaly Score: {score:.2f}",
-                popup=f"<b>Anomaly #{idx+1}</b><br>Score: {score:.2f}<br>Location: {point.y:.6f}, {point.x:.6f}"
-            ).add_to(anomalies_layer)
-        
-        # Add the layer to the map
-        anomalies_layer.add_to(map_obj)
-    
-    # Add layer control
-    folium.LayerControl().add_to(map_obj)
-    
-    # Save the map
-    output_path = Path(outdir) / "interactive_map.html"
+    map_obj = create_combined_map(
+        arch_dataframes,
+        lidar_df,
+        image_files,
+        points=points,
+        anomalies=anomalies,
+        bbox=bbox,
+    )
+
+    output_path = outdir / "interactive_map.html"
     map_obj.save(output_path)
     print(f"Saved interactive map to {output_path}")
 
