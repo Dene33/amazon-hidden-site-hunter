@@ -700,7 +700,10 @@ def create_combined_map(
         if df.empty:
             continue
 
-        source = df.get('source', [df_name])[0] if isinstance(df, pd.DataFrame) else df_name
+        if isinstance(df, pd.DataFrame) and 'source' in df.columns:
+            source = df['source'].iloc[0]
+        else:
+            source = df_name
         color = colors.get(df_name, 'black')
         
         # Filter valid coordinates
