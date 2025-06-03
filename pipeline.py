@@ -146,7 +146,8 @@ def step_interactive_map(cfg: Dict[str, Any], points, anomalies, bbox, base: Pat
     if not cfg.get("enabled", True):
         return
     console.rule("[bold green]Create interactive map")
-    create_interactive_map(points, anomalies, bbox, base)
+    include_data_vis = cfg.get("include_data_vis", False)
+    create_interactive_map(points, anomalies, bbox, base, include_data_vis=include_data_vis)
 
 
 # ---------------------------------------------------------------------------

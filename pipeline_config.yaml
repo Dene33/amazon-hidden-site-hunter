@@ -33,3 +33,4 @@ step4:
 
 step5:
   enabled: false
+  include_data_vis: false
