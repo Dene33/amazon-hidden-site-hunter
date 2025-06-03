@@ -783,6 +783,8 @@ def create_interactive_map(points, anomalies, bbox, outdir, include_data_vis=Fal
         Directory containing the generated PNG images.
     include_data_vis : bool, default False
         If True, include the additional reference layers from ``data_vis``.
+        Debug overlay images from ``outdir/debug`` are added automatically when
+        present.
     """
     if anomalies is None and not Path(outdir).exists():
         print("No data for interactive map")
@@ -799,6 +801,12 @@ def create_interactive_map(points, anomalies, bbox, outdir, include_data_vis=Fal
     if hillshade:
         image_files.append(str(hillshade[0].resolve()))
     image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("*_clean.png")))
+
+    debug_dir = outdir / "debug"
+    if debug_dir.exists():
+        image_files.extend(
+            str(p.resolve()) for p in sorted(debug_dir.glob("*_clean.png"))
+        )
 
     if include_data_vis:
         from data_vis import load_reference_datasets

@@ -573,6 +573,10 @@ def create_combined_map(
         
         
         # Add the image overlay to the feature group
+        base_vis = os.path.join(BASE_DIR, "data_vis")
+        is_data_vis = os.path.commonpath([img_path, base_vis]) == base_vis
+        use_mercator = not is_data_vis
+
         image_overlay = folium.raster_layers.ImageOverlay(
             image=img_url,
             bounds=bounds,
@@ -582,7 +586,7 @@ def create_combined_map(
             zindex=1,
             interactive=True,
             alt=img_name_simple,
-            # mercator_project=True if img_name_simple.startswith("copernicus") else False
+            mercator_project=use_mercator,
         )
         image_overlay.add_to(img_group)
         
