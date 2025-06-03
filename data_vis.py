@@ -709,10 +709,14 @@ def create_combined_map(
 
     colors = {}
     feature_groups = {}
-    for df_name, _ in arch_dataframes:
-        if df_name not in colors:
-            colors[df_name] = next(color_cycle)
-        feature_groups[df_name] = folium.FeatureGroup(name=df_name)
+    for df_name, df in arch_dataframes:
+        key_name = df_name
+        if isinstance(df, pd.DataFrame) and "source" in df.columns and not df["source"].empty:
+            key_name = str(df["source"].iloc[0])
+
+        if key_name not in colors:
+            colors[key_name] = next(color_cycle)
+        feature_groups[key_name] = folium.FeatureGroup(name=key_name)
     
     # Add points for each dataset
     total_points = 0
@@ -720,11 +724,12 @@ def create_combined_map(
         if df.empty:
             continue
 
-        if isinstance(df, pd.DataFrame) and 'source' in df.columns:
-            source = df['source'].iloc[0]
-        else:
-            source = df_name
-        color = colors.get(df_name, 'black')
+        key_name = df_name
+        if isinstance(df, pd.DataFrame) and 'source' in df.columns and not df['source'].empty:
+            key_name = str(df['source'].iloc[0])
+
+        color = colors.get(key_name, 'black')
+        source = key_name
         
         # Filter valid coordinates
         valid_coords = df.dropna(subset=['latitude', 'longitude'])
@@ -784,7 +789,7 @@ def create_combined_map(
                 fillColor=color,
                 fillOpacity=0.7,
                 weight=2
-            ).add_to(feature_groups[source])
+            ).add_to(feature_groups[key_name])
             
             total_points += 1
     
