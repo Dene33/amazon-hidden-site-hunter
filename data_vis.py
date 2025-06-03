@@ -556,6 +556,12 @@ def create_combined_map(
         if img_name_simple.startswith("copernicus"):
             # Use a different set of bounds for cleaned images
             bounds = OVERLAY_BOUNDS_COPERNICUS_2
+
+        # If we're overlaying one of the pipeline-generated images,
+        # use the provided bbox rather than the fixed data_vis bounds
+        if bbox and not os.path.commonpath([img_path, os.path.join(BASE_DIR, "data_vis")]) == os.path.join(BASE_DIR, "data_vis"):
+            xmin, ymin, xmax, ymax = bbox
+            bounds = [[ymin, xmin], [ymax, xmax]]
         #     img_url = np.asarray(Image.open(img_path))
         # else:
         #     # Get image URL
