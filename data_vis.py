@@ -557,20 +557,28 @@ def create_combined_map(
             # Use a different set of bounds for cleaned images
             bounds = OVERLAY_BOUNDS_COPERNICUS_2
 
-        # If we're overlaying one of the pipeline-generated images,
-        # use the provided bbox rather than the fixed data_vis bounds
-        if bbox and not os.path.commonpath([img_path, os.path.join(BASE_DIR, "data_vis")]) == os.path.join(BASE_DIR, "data_vis"):
-            xmin, ymin, xmax, ymax = bbox
-            bounds = [[ymin, xmin], [ymax, xmax]]
-
         base_vis = os.path.join(BASE_DIR, "data_vis")
         is_data_vis = os.path.commonpath([img_path, base_vis]) == base_vis
-        use_mercator = not is_data_vis
+        is_mercator_file = img_name_simple.endswith("_3857")
 
-        if use_mercator:
-            img_input = np.asarray(Image.open(img_path))
-        else:
+        if bbox and not is_data_vis:
+            xmin, ymin, xmax, ymax = bbox
+            if is_mercator_file:
+                t = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+                xmin, ymin = t.transform(xmin, ymin)
+                xmax, ymax = t.transform(xmax, ymax)
+            bounds = [[ymin, xmin], [ymax, xmax]]
+
+        # Decide whether Leaflet should project the image
+        if is_mercator_file:
+            use_mercator = False
             img_input = f"file://{img_path}"
+        else:
+            use_mercator = not is_data_vis
+            if use_mercator:
+                img_input = np.asarray(Image.open(img_path))
+            else:
+                img_input = f"file://{img_path}"
         
         # Create a unique ID for this image's control
         img_id = f"img_{img_name_simple.replace(' ', '_').replace('.', '_')}"
