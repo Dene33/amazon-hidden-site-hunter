@@ -562,10 +562,10 @@ def create_combined_map(
         if bbox and not os.path.commonpath([img_path, os.path.join(BASE_DIR, "data_vis")]) == os.path.join(BASE_DIR, "data_vis"):
             xmin, ymin, xmax, ymax = bbox
             bounds = [[ymin, xmin], [ymax, xmax]]
-        #     img_url = np.asarray(Image.open(img_path))
-        # else:
-        #     # Get image URL
-        img_url = f"file://{img_path}"
+        if use_mercator:
+            img_input = np.asarray(Image.open(img_path))
+        else:
+            img_input = f"file://{img_path}"
         
         # Create a unique ID for this image's control
         img_id = f"img_{img_name_simple.replace(' ', '_').replace('.', '_')}"
@@ -578,7 +578,7 @@ def create_combined_map(
         use_mercator = not is_data_vis
 
         image_overlay = folium.raster_layers.ImageOverlay(
-            image=img_url,
+            image=img_input,
             bounds=bounds,
             opacity=0.7,
             name=img_name_simple,
