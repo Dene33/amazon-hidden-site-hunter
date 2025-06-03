@@ -467,7 +467,7 @@ def detect_anomalies(
             continue
         cy, cx = reg.centroid
         lon = float(np.interp(cx, np.arange(xi.shape[1]), xi[0]))
-        lat = float(np.interp(cy, np.arange(yi.shape[0]), yi[:, 0]))
+        lat = float(np.interp(cy, np.arange(yi.shape[0]), yi[::-1, 0]))
         score = float(np.nanmax(np.abs(rrm_smooth[reg.slice])))
         blobs.append({"geometry": Point(lon, lat), "score": score})
 
