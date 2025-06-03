@@ -22,6 +22,7 @@ import numpy as np
 import folium
 from folium import plugins
 from folium import JavascriptLink, Element
+import itertools
 # import re
 from pyproj import Transformer
 # import openpyxl
@@ -300,9 +301,152 @@ def read_my_sites_data(filepath):
         print(f"Error reading my sites data: {e}")
         return pd.DataFrame()
 
-def create_combined_map(arch_dataframes, lidar_df, image_files):
+def load_reference_datasets(base_dir: str = BASE_DIR):
+    """Load reference archaeological and LiDAR datasets used for the map.
+
+    Parameters
+    ----------
+    base_dir : str
+        Base directory containing the ``data_vis`` assets.
+
+    Returns
+    -------
+    tuple
+        ``(arch_dataframes, lidar_df, image_files)`` where ``arch_dataframes``
+        is a list of ``(name, DataFrame)`` pairs, ``lidar_df`` is a DataFrame of
+        LiDAR coverage polygons and ``image_files`` is a list of overlay image
+        paths.
+    """
+
+    # Find image files in the base directory
+    image_files = []
+    dv_dir = os.path.join(base_dir, "data_vis")
+    if os.path.isdir(dv_dir):
+        for filename in os.listdir(dv_dir):
+            if filename.lower().endswith((".png", ".jpg", ".jpeg")) and os.path.isfile(
+                os.path.join(dv_dir, filename)
+            ):
+                image_files.append(os.path.join(dv_dir, filename))
+
+    arch_dataframes = []
+
+    # 1. Mound villages
+    try:
+        mound_df = read_mound_villages_data(
+            os.path.join(base_dir, "data_vis/mound-villages-acre/mound_villages_acre.csv")
+        )
+        if not mound_df.empty:
+            arch_dataframes.append(("Mound Villages", mound_df))
+    except Exception as e:  # noqa: BLE001
+        print(f"  - Mound villages file not found or cannot be read: {e}")
+
+    # 2. Casarabe sites
+    try:
+        casarabe_df = read_casarabe_sites_data(
+            os.path.join(base_dir, "data_vis/casarabe-sites-utm/casarabe_sites_utm.csv")
+        )
+        if not casarabe_df.empty:
+            arch_dataframes.append(("Casarabe Sites", casarabe_df))
+    except Exception as e:  # noqa: BLE001
+        print(f"  - Casarabe sites file not found or cannot be read: {e}")
+
+    # 3. Amazon geoglyphs
+    try:
+        geoglyphs_df = read_geoglyphs_data(
+            os.path.join(base_dir, "data_vis/amazon-geoglyphs-sites/amazon_geoglyphs_sites.csv")
+        )
+        if not geoglyphs_df.empty:
+            if len(geoglyphs_df) > 2000:
+                geoglyphs_df = geoglyphs_df.sample(n=2000, random_state=42)
+            arch_dataframes.append(("Amazon Geoglyphs", geoglyphs_df))
+    except Exception as e:  # noqa: BLE001
+        print(f"  - Amazon geoglyphs file not found or cannot be read: {e}")
+
+    # 4. Archaeological survey data
+    try:
+        submit_df = read_submit_data(
+            os.path.join(base_dir, "data_vis/archaeological-survey-data/submit.csv")
+        )
+        if not submit_df.empty:
+            if len(submit_df) > 1000:
+                submit_df = submit_df.sample(n=1000, random_state=42)
+            arch_dataframes.append(("Archaeological Survey Data", submit_df))
+    except Exception as e:  # noqa: BLE001
+        print(f"  - Submit data file not found or cannot be read: {e}")
+
+    # 5. Science data
+    try:
+        science_df = read_science_data(
+            os.path.join(base_dir, "data_vis/science_data/science.ade2541_data_s2.csv")
+        )
+        if not science_df.empty:
+            arch_dataframes.append(("Science Data", science_df))
+    except Exception as e:  # noqa: BLE001
+        print(f"  - Science data file not found or cannot be read: {e}")
+
+    # 6. LiDAR inventory
+    try:
+        lidar_file = os.path.join(
+            base_dir,
+            "data_vis/cms_brazil_lidar_tile_inventory/cms_brazil_lidar_tile_inventory.csv",
+        )
+        lidar_df = pd.read_csv(lidar_file)
+        lidar_df["geometry"] = lidar_df.apply(row_to_poly, axis=1)
+    except Exception as e:  # noqa: BLE001
+        print(f"Error reading LiDAR inventory data: {e}")
+        lidar_df = pd.DataFrame()
+
+    # 7. Lomas sites
+    try:
+        lomas_df = read_lomas_sites_data(os.path.join(base_dir, "data_vis/lomas-sites/lomas_sites.csv"))
+        if not lomas_df.empty:
+            arch_dataframes.append(("Lomas Sites", lomas_df))
+    except Exception as e:  # noqa: BLE001
+        print(f"  - Lomas sites file not found or cannot be read: {e}")
+
+    # 8. Custom user sites
+    try:
+        my_sites_df = read_my_sites_data(os.path.join(base_dir, "data_vis/my-sites/my_sites.csv"))
+        if not my_sites_df.empty:
+            arch_dataframes.append(("My Sites", my_sites_df))
+    except Exception as e:  # noqa: BLE001
+        print(f"  - My sites file not found or cannot be read: {e}")
+
+    return arch_dataframes, lidar_df, image_files
+
+
+def create_combined_map(
+    arch_dataframes=None,
+    lidar_df=None,
+    image_files=None,
+    *,
+    points=None,
+    anomalies=None,
+    bbox=None,
+):
+    arch_dataframes = arch_dataframes or []
+    lidar_df = lidar_df if lidar_df is not None else pd.DataFrame()
+    image_files = image_files or []
+
+    # Determine center from bbox if provided
+    center = MAP_CENTER
+    if bbox:
+        xmin, ymin, xmax, ymax = bbox
+        center = [(ymin + ymax) / 2, (xmin + xmax) / 2]
+
     # 1️⃣  Build the Map **without** a default tile set
-    m = folium.Map(location=MAP_CENTER, zoom_start=MAP_ZOOM, tiles=None)
+    m = folium.Map(location=center, zoom_start=MAP_ZOOM, tiles=None)
+
+    # Add bounding box if provided
+    if bbox:
+        folium.Rectangle(
+            bounds=[[ymin, xmin], [ymax, xmax]],
+            color="red",
+            fill=True,
+            fill_color="yellow",
+            fill_opacity=0.1,
+            tooltip="Area of Interest",
+        ).add_to(m)
 
     # 1️⃣ Load the JS for the graticule plugin
     JavascriptLink(
@@ -528,30 +672,36 @@ def create_combined_map(arch_dataframes, lidar_df, image_files):
     lidar_group.add_to(m)
     
     # Add archaeological sites
-    # Color mapping for different sources
-    colors = {
-        'Mound Villages': 'red',
-        'Casarabe Sites': 'blue', 
-        'Amazon Geoglyphs': 'orange',
-        'Archaeological Survey Data': 'green',
-        'Science Data': 'purple',
-        'Lomas Sites': 'cyan',       # NEW
-        'My Sites': 'magenta',
-    }
-    
-    # Create feature groups for different data sources
+    color_cycle = itertools.cycle(
+        [
+            "red",
+            "blue",
+            "orange",
+            "green",
+            "purple",
+            "cyan",
+            "magenta",
+            "yellow",
+            "brown",
+            "pink",
+        ]
+    )
+
+    colors = {}
     feature_groups = {}
-    for source in colors.keys():
-        feature_groups[source] = folium.FeatureGroup(name=source)
+    for df_name, _ in arch_dataframes:
+        if df_name not in colors:
+            colors[df_name] = next(color_cycle)
+        feature_groups[df_name] = folium.FeatureGroup(name=df_name)
     
     # Add points for each dataset
     total_points = 0
     for df_name, df in arch_dataframes:
         if df.empty:
             continue
-            
-        source = df['source'].iloc[0] if 'source' in df.columns else df_name
-        color = colors.get(source, 'black')
+
+        source = df.get('source', [df_name])[0] if isinstance(df, pd.DataFrame) else df_name
+        color = colors.get(df_name, 'black')
         
         # Filter valid coordinates
         valid_coords = df.dropna(subset=['latitude', 'longitude'])
@@ -619,6 +769,50 @@ def create_combined_map(arch_dataframes, lidar_df, image_files):
     for fg in feature_groups.values():
         fg.add_to(m)
 
+    # Add GEDI points if provided
+    if points:
+        gedi_fg = folium.FeatureGroup(name="GEDI Points", show=False, control=True)
+        for lat, lon, *_ in points:
+            folium.CircleMarker(
+                location=[lat, lon],
+                radius=2,
+                color="black",
+                fill=True,
+                fill_color="black",
+                fill_opacity=0.5,
+            ).add_to(gedi_fg)
+        gedi_fg.add_to(m)
+
+    # Add anomalies if provided
+    if anomalies is not None and not anomalies.empty:
+        anomalies_layer = folium.FeatureGroup(name="Detected Anomalies")
+
+        def get_color(score):
+            if score > 5:
+                return "#FF0000"
+            elif score > 3:
+                return "#FFA500"
+            else:
+                return "#FFFF00"
+
+        for idx, row in anomalies.iterrows():
+            point = row.geometry
+            score = row.get("score", 0)
+            folium.CircleMarker(
+                location=[point.y, point.x],
+                radius=8,
+                color=get_color(score),
+                fill=True,
+                fill_color=get_color(score),
+                fill_opacity=0.7,
+                tooltip=f"Anomaly Score: {score:.2f}",
+                popup=(
+                    f"<b>Anomaly #{idx+1}</b><br>Score: {score:.2f}<br>Location: {point.y:.6f}, {point.x:.6f}"
+                ),
+            ).add_to(anomalies_layer)
+
+        anomalies_layer.add_to(m)
+
     # ――― ➊  add coordinate reference lines  ―――
     # Grab the limits once so it works for either BOUNDS variant you switch to
     upper_lat  = OVERLAY_BOUNDS_CLEAN[0][0]   #  10 °  N
@@ -683,118 +877,9 @@ def create_combined_map(arch_dataframes, lidar_df, image_files):
     return m
 
 def main():
-    """Main function to read all data and create the combined map."""
-    print("Reading archaeological site data, LiDAR coverage data, and preparing image overlays...")
-    
-    # Find image files in the base directory
-    image_files = []
-    for filename in os.listdir(os.path.join(BASE_DIR, 'data_vis')):
-        if filename.endswith(('.png', '.jpg', '.jpeg')) and os.path.isfile(os.path.join(BASE_DIR, 'data_vis', filename)):
-            image_files.append(os.path.join(BASE_DIR, 'data_vis', filename))
-    
-    print(f"Found {len(image_files)} image files for overlay:")
-    for img in image_files:
-        print(f"  - {os.path.basename(img)}")
-    
-    # Read archaeological datasets
-    arch_dataframes = []
-    
-    # 1. Read mound villages data
-    print("Reading mound villages data...")
-    try:
-        mound_df = read_mound_villages_data(os.path.join(BASE_DIR, 'data_vis/mound-villages-acre/mound_villages_acre.csv'))
-        if not mound_df.empty:
-            arch_dataframes.append(('Mound Villages', mound_df))
-            print(f"  - Loaded {len(mound_df)} mound village sites")
-    except Exception as e:
-        print(f"  - Mound villages file not found or cannot be read: {e}")
-    
-    # 2. Read Casarabe sites
-    print("Reading Casarabe sites...")
-    try:
-        casarabe_df = read_casarabe_sites_data(os.path.join(BASE_DIR, 'data_vis/casarabe-sites-utm/casarabe_sites_utm.csv'))
-        if not casarabe_df.empty:
-            arch_dataframes.append(('Casarabe Sites', casarabe_df))
-            print(f"  - Loaded {len(casarabe_df)} Casarabe sites")
-    except Exception as e:
-        print(f"  - Casarabe sites file not found or cannot be read: {e}")
-    
-    # 3. Read Amazon geoglyphs
-    print("Reading Amazon geoglyphs...")
-    try:
-        geoglyphs_df = read_geoglyphs_data(os.path.join(BASE_DIR, 'data_vis/amazon-geoglyphs-sites/amazon_geoglyphs_sites.csv'))
-        if not geoglyphs_df.empty:
-            # Sample the data if it's too large (for performance)
-            original_count = len(geoglyphs_df)
-            if len(geoglyphs_df) > 2000:
-                geoglyphs_df = geoglyphs_df.sample(n=2000, random_state=42)
-                print(f"  - Sampled 2000 geoglyphs from {original_count} total geoglyphs")
-            arch_dataframes.append(('Amazon Geoglyphs', geoglyphs_df))
-            print(f"  - Loaded {len(geoglyphs_df)} Amazon geoglyphs")
-    except Exception as e:
-        print(f"  - Amazon geoglyphs file not found or cannot be read: {e}")
-    
-    # 4. Read submit data
-    print("Reading submit data...")
-    try:
-        submit_df = read_submit_data(os.path.join(BASE_DIR, 'data_vis/archaeological-survey-data/submit.csv'))
-        if not submit_df.empty:
-            # Sample the data if it's too large (for performance)
-            original_count = len(submit_df)
-            if len(submit_df) > 1000:
-                submit_df = submit_df.sample(n=1000, random_state=42)
-                print(f"  - Sampled 1000 points from {original_count} total points")
-            arch_dataframes.append(('Archaeological Survey Data', submit_df))
-            print(f"  - Loaded {len(submit_df)} archaeological survey data points")
-    except Exception as e:
-        print(f"  - Submit data file not found or cannot be read: {e}")
-    
-    # 5. Read science data
-    print("Reading science data...")
-    try:
-        science_df = read_science_data(os.path.join(BASE_DIR, 'data_vis/science_data/science.ade2541_data_s2.csv'))
-        if not science_df.empty:
-            arch_dataframes.append(('Science Data', science_df))
-            print(f"  - Loaded {len(science_df)} science data points")
-    except Exception as e:
-        print(f"  - Science data file not found or cannot be read: {e}")
-    
-    # Read LiDAR data
-    print("Reading LiDAR inventory data...")
-    try:
-        lidar_file = os.path.join(BASE_DIR, 'data_vis/cms_brazil_lidar_tile_inventory/cms_brazil_lidar_tile_inventory.csv')
-        lidar_df = pd.read_csv(lidar_file)
-        print(f"Loaded {len(lidar_df)} LiDAR tiles")
-        
-        # Build a polygon from each row
-        lidar_df["geometry"] = lidar_df.apply(row_to_poly, axis=1)
-    except Exception as e:
-        print(f"Error reading LiDAR inventory data: {e}")
-        lidar_df = pd.DataFrame()
+    """Read reference data and produce the combined map."""
+    arch_dataframes, lidar_df, image_files = load_reference_datasets()
 
-    # 6. Read Lomas sites
-    print("Reading Lomas sites...")
-    try:
-        lomas_df = read_lomas_sites_data(
-            os.path.join(BASE_DIR, "data_vis/lomas-sites/lomas_sites.csv")
-        )
-        if not lomas_df.empty:
-            arch_dataframes.append(("Lomas Sites", lomas_df))
-            print(f"  - Loaded {len(lomas_df)} Lomas sites")
-    except Exception as e:
-        print(f"  - Lomas sites file not found or cannot be read: {e}")
-
-    # 7. Read my sites data
-    print("Reading my sites data...")
-    try:
-        my_sites_df = read_my_sites_data(os.path.join(BASE_DIR, 'data_vis/my-sites/my_sites.csv'))
-        if not my_sites_df.empty:
-            arch_dataframes.append(('My Sites', my_sites_df))
-            print(f"  - Loaded {len(my_sites_df)} my sites")
-    except Exception as e:
-        print(f"  - My sites file not found or cannot be read: {e}")
-    
-    # Create the combined map
     print("Creating combined interactive map...")
     map_obj = create_combined_map(arch_dataframes, lidar_df, image_files)
     
@@ -808,7 +893,7 @@ def main():
     print("\n=== Summary ===")
     total_sites = sum(len(df) for _, df in arch_dataframes)
     print(f"Total archaeological sites plotted: {total_sites}")
-    
+
     for name, df in arch_dataframes:
         valid_coords = df.dropna(subset=['latitude', 'longitude'])
         print(f"  - {name}: {len(valid_coords)} sites with valid coordinates")

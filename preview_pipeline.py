@@ -20,6 +20,7 @@ from rasterio.warp import calculate_default_transform, reproject, Resampling
 import h5py
 from pathlib import Path
 import geopandas as gpd
+import pandas as pd
 from shapely.geometry import Point, box
 from folium.plugins import MarkerCluster, HeatMap
 import matplotlib as mpl
@@ -721,91 +722,31 @@ def create_interactive_map(points, anomalies, bbox, outdir, include_data_vis=Fal
     if anomalies is None and not Path(outdir).exists():
         print("No data for interactive map")
         return
-    
-    xmin, ymin, xmax, ymax = bbox
-    center_lat = (ymin + ymax) / 2
-    center_lon = (xmin + xmax) / 2
-    
-    # Create base map, optionally using the data_vis map
-    if include_data_vis:
-        from data_vis import main as data_vis_main
-        map_obj = data_vis_main()
-    else:
-        map_obj = folium.Map(location=[center_lat, center_lon], zoom_start=10)
-    
-    # Add bounding box
-    folium.Rectangle(
-        bounds=[[ymin, xmin], [ymax, xmax]],
-        color='red',
-        fill=True,
-        fill_color='yellow',
-        fill_opacity=0.1,
-        tooltip="Area of Interest",
-        name="Bounding Box"
-    ).add_to(map_obj)
-    
 
-    # Add generated images as overlays
+    from data_vis import create_combined_map, load_reference_datasets
+
+    arch_dataframes = []
+    lidar_df = pd.DataFrame()
     outdir = Path(outdir)
-    for img_path in sorted(outdir.glob("*.png")):
-        bounds = [[ymin, xmin], [ymax, xmax]]
+    image_files = [str(p.resolve()) for p in sorted(outdir.glob("*.png"))]
 
-        # Wrap each overlay in a FeatureGroup so LayerControl shows a checkbox
-        img_group = folium.FeatureGroup(
-            name=f"Image: {img_path.stem}",
-            show=False,
-        )
+    if include_data_vis:
+        from data_vis import load_reference_datasets
+        ref_arch, ref_lidar, ref_images = load_reference_datasets()
+        arch_dataframes = ref_arch
+        lidar_df = ref_lidar
+        image_files.extend(ref_images)
 
-        folium.raster_layers.ImageOverlay(
-            image=str(img_path.resolve()),
-            bounds=bounds,
-            opacity=0.7,
-            name=img_path.stem,
-            interactive=True,
-            control=True,
-        ).add_to(img_group)
+    map_obj = create_combined_map(
+        arch_dataframes,
+        lidar_df,
+        image_files,
+        points=points,
+        anomalies=anomalies,
+        bbox=bbox,
+    )
 
-        img_group.add_to(map_obj)
-    
-    # Add anomalies if available
-    if anomalies is not None and not anomalies.empty:
-        anomalies_layer = folium.FeatureGroup(name="Detected Anomalies")
-        
-        # Function to get color based on score
-        def get_color(score):
-            if score > 5:
-                return '#FF0000'  # Red for high scores
-            elif score > 3:
-                return '#FFA500'  # Orange for medium scores
-            else:
-                return '#FFFF00'  # Yellow for low scores
-        
-        # Add each anomaly point
-        for idx, row in anomalies.iterrows():
-            # Get geometry and score
-            point = row.geometry
-            score = row.get('score', 0)
-            
-            # Create a circle marker
-            folium.CircleMarker(
-                location=[point.y, point.x],
-                radius=8,
-                color=get_color(score),
-                fill=True,
-                fill_color=get_color(score),
-                fill_opacity=0.7,
-                tooltip=f"Anomaly Score: {score:.2f}",
-                popup=f"<b>Anomaly #{idx+1}</b><br>Score: {score:.2f}<br>Location: {point.y:.6f}, {point.x:.6f}"
-            ).add_to(anomalies_layer)
-        
-        # Add the layer to the map
-        anomalies_layer.add_to(map_obj)
-    
-    # Add layer control
-    folium.LayerControl().add_to(map_obj)
-    
-    # Save the map
-    output_path = Path(outdir) / "interactive_map.html"
+    output_path = outdir / "interactive_map.html"
     map_obj.save(output_path)
     print(f"Saved interactive map to {output_path}")
 
