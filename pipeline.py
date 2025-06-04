@@ -70,7 +70,10 @@ def step_fetch_data(
         console.rule("[bold green]Fetch Copernicus DEM")
         dem_path = fetch_cop_tiles(tuple(bbox), base)
         if cfg.get("visualize", True) and dem_path:
+            # Save the full map image
             visualize_copernicus_dem(dem_path, bbox, base)
+            # Save a clean hillshade version for the interactive map overlay
+            visualize_copernicus_dem(dem_path, bbox, base, bare=True)
 
     if cfg.get("fetch_gedi_points", {}).get("enabled", True):
         console.rule("[bold green]Fetch GEDI footprints")
