@@ -6,7 +6,7 @@ DEM ( Copernicus GLO-90 )  ×  GEDI L2A ground returns  →  canopy-hidden earth
 
 v0.5  — persistent GEDI cache
 -----------------------------
-* `--cache DIR`  (default: <OUT>/gedi_cache)  
+* `--cache DIR`  (default: <OUT>/gedi_cache)
   Downloads go here once and are re-used on the next run.
 * No temp folders: `earthaccess.download()` simply skips files that
   already exist in the cache, so repeated calls are fast and offline-safe.
@@ -40,10 +40,11 @@ from rasterio.transform import from_origin
 console = Console()
 
 # ─────────────────────────── constants ───────────────────────────
-COP_DEM_BASE     = "https://copernicus-dem-90m.s3.amazonaws.com"
-EARTHDATA_SHORT  = "GEDI02_A"
-EARTHDATA_VERSION= "002"
+COP_DEM_BASE = "https://copernicus-dem-90m.s3.amazonaws.com"
+EARTHDATA_SHORT = "GEDI02_A"
+EARTHDATA_VERSION = "002"
 # ──────────────────────────────────────────────────────────────────
+
 
 def _nan_gaussian_filter(arr: np.ndarray, sigma: float) -> np.ndarray:
     """Gaussian filter that ignores NaN values."""
@@ -56,6 +57,7 @@ def _nan_gaussian_filter(arr: np.ndarray, sigma: float) -> np.ndarray:
     smoothed[weights == 0] = np.nan
     return smoothed
 
+
 def ensure_earthdata_login() -> None:
     """Login using ~/.netrc if available, otherwise prompt the user."""
     console.print("[yellow]Earthdata login required")
@@ -64,17 +66,22 @@ def ensure_earthdata_login() -> None:
         console.print("[green]Logged in successfully using ~/.netrc")
         return
     except Exception as e:
-        console.print(f"[red]Failed to load credentials: {escape(str(e))}")        
+        console.print(f"[red]Failed to load credentials: {escape(str(e))}")
     console.print("No ~/.netrc found or login failed, prompting for credentials")
 
-    persist = input("Use persistent login (save credentials to ~/.netrc)? [y/N] ").strip().lower() == "y"
-    
+    persist = (
+        input("Use persistent login (save credentials to ~/.netrc)? [y/N] ")
+        .strip()
+        .lower()
+        == "y"
+    )
+
     earthaccess.login(persist=persist, strategy="interactive")
 
 
 def cop_tile_url(lat: float, lon: float) -> str:
     lat_sw, lon_sw = math.floor(lat), math.floor(lon)
-    ns, ew   = ("N" if lat_sw >= 0 else "S"), ("E" if lon_sw >= 0 else "W")
+    ns, ew = ("N" if lat_sw >= 0 else "S"), ("E" if lon_sw >= 0 else "W")
     lat_s, lon_s = f"{abs(lat_sw):02d}_00", f"{abs(lon_sw):03d}_00"
     stem = f"Copernicus_DSM_COG_30_{ns}{lat_s}_{ew}{lon_s}_DEM"
     return f"{COP_DEM_BASE}/{stem}/{stem}.tif"
@@ -93,12 +100,17 @@ def fetch_cop_tiles(bbox: tuple[float, float, float, float], out_dir: Path) -> P
                     if all(abs(s - b) < 1e-6 for s, b in zip(saved, bbox)):
                         console.log(f"[green]Using existing DEM mosaic → {dem_path}")
                         return dem_path
-                bounds = (src.bounds.left, src.bounds.bottom, src.bounds.right, src.bounds.top)
+                bounds = (
+                    src.bounds.left,
+                    src.bounds.bottom,
+                    src.bounds.right,
+                    src.bounds.top,
+                )
                 if all(abs(s - b) < 1e-6 for s, b in zip(bounds, bbox)):
                     console.log(f"[green]Using existing DEM mosaic → {dem_path}")
                     return dem_path
         except Exception as e:
-            console.log(f"[yellow]Failed to read existing DEM: {escape(str(e))}")           
+            console.log(f"[yellow]Failed to read existing DEM: {escape(str(e))}")
 
     lat_rng = range(int(math.floor(ymin)), int(math.ceil(ymax)) + 1)
     lon_rng = range(int(math.floor(xmin)), int(math.ceil(xmax)) + 1)
@@ -106,7 +118,7 @@ def fetch_cop_tiles(bbox: tuple[float, float, float, float], out_dir: Path) -> P
     tif_paths: list[Path] = []
     for lat in lat_rng:
         for lon in lon_rng:
-            url   = cop_tile_url(lat, lon)
+            url = cop_tile_url(lat, lon)
             local = out_dir / Path(url).name
             if not local.exists():
                 console.log(f"Fetching {url}")
@@ -124,19 +136,19 @@ def fetch_cop_tiles(bbox: tuple[float, float, float, float], out_dir: Path) -> P
     srcs = [rio.open(str(p)) for p in tif_paths]
 
     with rio.open(tif_paths[0]) as first:
-        nodata_val = first.nodata or -9999     # fallback if tag is missing
+        nodata_val = first.nodata or -9999  # fallback if tag is missing
 
     # 🔴  The magic line – merge **only** the pixels inside `bbox`
     mosaic, transform = merge(srcs, bounds=bbox, precision=30, nodata=nodata_val)
 
     meta = srcs[0].meta.copy()
     meta.update(
-        driver     ="GTiff",
-        height     =mosaic.shape[1],
-        width      =mosaic.shape[2],
-        transform  =transform,
-        compress   ="lzw",
-        nodata     =-9999,
+        driver="GTiff",
+        height=mosaic.shape[1],
+        width=mosaic.shape[2],
+        transform=transform,
+        compress="lzw",
+        nodata=-9999,
     )
 
     dem_path = out_dir / "cop90_mosaic.tif"
@@ -148,7 +160,9 @@ def fetch_cop_tiles(bbox: tuple[float, float, float, float], out_dir: Path) -> P
         s.close()
     return dem_path
 
+
 # ──────────────── GEDI helpers ─────────────────
+
 
 def _size_mb_to_bytes(mb) -> int:
     return int(float(mb) * 1_048_576) if mb else 0
@@ -188,18 +202,17 @@ def fetch_gedi_points(
 
     # search
     granules = earthaccess.search_data(
-        short_name = EARTHDATA_SHORT,
-        version    = EARTHDATA_VERSION,
-        bounding_box = (xmin, ymin, xmax, ymax),
-        temporal     = (time_start, time_end),
+        short_name=EARTHDATA_SHORT,
+        version=EARTHDATA_VERSION,
+        bounding_box=(xmin, ymin, xmax, ymax),
+        temporal=(time_start, time_end),
     )
     if not granules:
         raise RuntimeError("No GEDI granules intersect bbox + dates.")
 
     total_bytes = sum(_size_mb_to_bytes(g.size()) for g in granules)
     console.log(
-        f"{len(granules)} granules to download "
-        f"({total_bytes/1_048_576:,.1f} MiB)"
+        f"{len(granules)} granules to download " f"({total_bytes/1_048_576:,.1f} MiB)"
     )
 
     cache_dir.mkdir(parents=True, exist_ok=True)
@@ -260,7 +273,7 @@ def fetch_gedi_points(
 
     # Get list of all local files regardless of how they were obtained
     local_paths = [cache_dir / Path(g.data_links()[0]).name for g in granules]
-    
+
     rows: List[pd.DataFrame] = []
     for p in track(local_paths, description="Parsing GEDI files"):
         if not p.exists():
@@ -270,8 +283,8 @@ def fetch_gedi_points(
         try:
             with h5py.File(p, "r") as h5:
                 for beam in [k for k in h5 if k.startswith("BEAM")]:
-                    lat  = _read_gedi_var(h5[f"{beam}/lat_lowestmode"])
-                    lon  = _read_gedi_var(h5[f"{beam}/lon_lowestmode"])
+                    lat = _read_gedi_var(h5[f"{beam}/lat_lowestmode"])
+                    lon = _read_gedi_var(h5[f"{beam}/lon_lowestmode"])
                     elev = _read_gedi_var(h5[f"{beam}/elev_lowestmode"])
                     qflag = _read_gedi_var(
                         h5[f"{beam}/quality_flag"], coerce_float=False
@@ -299,7 +312,9 @@ def fetch_gedi_points(
             if verify_sizes:
                 corrupted_path = p.with_suffix(p.suffix + ".corrupted")
                 p.rename(corrupted_path)
-                console.log(f"[yellow]Marked {p.name} as corrupted for future re-download")
+                console.log(
+                    f"[yellow]Marked {p.name} as corrupted for future re-download"
+                )
 
         if rows and sum(len(df) for df in rows) >= max_points:
             break
@@ -330,12 +345,12 @@ def fetch_gedi_points(
 
 
 def interpolate_bare_earth(
-        gdf,
-        bbox: tuple[float, float, float, float],
-        res: float = 0.2695,
-        power: float = .1,
-        k: int = 256,
-        nodata: float = np.nan,
+    gdf,
+    bbox: tuple[float, float, float, float],
+    res: float = 0.2695,
+    power: float = 0.1,
+    k: int = 256,
+    nodata: float = np.nan,
 ):
     """
     Inverse-distance weighted (IDW) interpolation of GEDI 'elev_lowestmode'.
@@ -356,36 +371,35 @@ def interpolate_bare_earth(
     xmin, ymin, xmax, ymax = bbox
     xi = np.arange(xmin, xmax + res, res, dtype=np.float32)
     yi = np.arange(ymin, ymax + res, res, dtype=np.float32)
-    xi_m, yi_m = np.meshgrid(xi, yi, indexing='xy')
+    xi_m, yi_m = np.meshgrid(xi, yi, indexing="xy")
 
     # Prepare point cloud
-    pts  = np.column_stack((gdf.geometry.x.values,
-                            gdf.geometry.y.values)).astype(np.float32)
-    vals = gdf['elev_lowestmode'].values.astype(np.float32)
+    pts = np.column_stack((gdf.geometry.x.values, gdf.geometry.y.values)).astype(
+        np.float32
+    )
+    vals = gdf["elev_lowestmode"].values.astype(np.float32)
 
     # KD-tree for fast neighbour queries
     tree = cKDTree(pts)
 
     # Query k nearest neighbours for *all* grid nodes at once
     dists, idxs = tree.query(
-        np.column_stack((xi_m.ravel(), yi_m.ravel())),
-        k=k, workers=-1
-    )                                       # shape = (n_cells, k)
+        np.column_stack((xi_m.ravel(), yi_m.ravel())), k=k, workers=-1
+    )  # shape = (n_cells, k)
 
     # Handle cells with <k neighbours inside the tree’s finite radius
     mask = np.isfinite(dists)
-    w    = np.zeros_like(dists, dtype=np.float32)
-    w[mask] = 1 / np.power(dists[mask], power)   # w ∝ 1 / d^power
-    w_sum   = w.sum(axis=1)
+    w = np.zeros_like(dists, dtype=np.float32)
+    w[mask] = 1 / np.power(dists[mask], power)  # w ∝ 1 / d^power
+    w_sum = w.sum(axis=1)
 
     # Avoid division by zero
-    safe    = w_sum > 0
+    safe = w_sum > 0
     zi_flat = np.full_like(w_sum, nodata, dtype=np.float32)
     zi_flat[safe] = (w[safe] * vals[idxs[safe]]).sum(axis=1) / w_sum[safe]
 
     zi = zi_flat.reshape(xi_m.shape)
     return xi_m, yi_m, zi
-
 
 
 # def residual_relief(bearth, dem_path: Path):
@@ -401,21 +415,22 @@ def interpolate_bare_earth(
 #                   resampling=Resampling.bilinear)
 #     return zi - dest
 
+
 def residual_relief(bearth, dem_path: Path):
     """
     Subtract Copernicus DEM from the GEDI bare-earth surface, guaranteeing that
     any pixel touched by nodata / outside the DEM is returned as NaN.
     """
     xi, yi, zi = bearth
-    res_x = xi[0, 1] - xi[0, 0]          # ° lon / pixel
-    res_y = yi[1, 0] - yi[0, 0]          # ° lat / pixel (positive)
+    res_x = xi[0, 1] - xi[0, 0]  # ° lon / pixel
+    res_y = yi[1, 0] - yi[0, 0]  # ° lat / pixel (positive)
 
     # destination grid that matches (xi, yi)
     dst_transform = from_origin(
-        xi[0, 0],                # xmin
-        yi.max() + res_y,        # ymax (upper edge)
-        res_x,                   # pixel width
-        res_y                    # pixel height
+        xi[0, 0],  # xmin
+        yi.max() + res_y,  # ymax (upper edge)
+        res_x,  # pixel width
+        res_y,  # pixel height
     )
 
     with rio.open(dem_path) as src:
@@ -425,13 +440,16 @@ def residual_relief(bearth, dem_path: Path):
         dest = np.full_like(zi, np.nan, dtype=np.float32)
 
         reproject(
-            rio.band(src, 1), dest,
-            src_transform=src.transform, src_crs=src.crs,
-            dst_transform=dst_transform, dst_crs="EPSG:4326",
+            rio.band(src, 1),
+            dest,
+            src_transform=src.transform,
+            src_crs=src.crs,
+            dst_transform=dst_transform,
+            dst_crs="EPSG:4326",
             resampling=Resampling.bilinear,
             src_nodata=nodata_val,
-            dst_nodata=np.nan,           # any sample hit by nodata → NaN
-            init_dest_nodata=True        # ignore nodata in the average
+            dst_nodata=np.nan,  # any sample hit by nodata → NaN
+            init_dest_nodata=True,  # ignore nodata in the average
         )
 
     # final residual, but only where *both* surfaces are valid
@@ -570,36 +588,55 @@ def detect_anomalies(
 
 # ───────── main CLI ─────────
 
+
 def main():
     today = dt.date.today()
     p = argparse.ArgumentParser(description="Detect canopy-hidden earthworks")
-    p.add_argument("--bbox", nargs=4, type=float, metavar=("xmin","ymin","xmax","ymax"),
-                   required=True, help="Longitude/Latitude bounds")
+    p.add_argument(
+        "--bbox",
+        nargs=4,
+        type=float,
+        metavar=("xmin", "ymin", "xmax", "ymax"),
+        required=True,
+        help="Longitude/Latitude bounds",
+    )
     p.add_argument("--out", required=True, help="Output folder")
-    p.add_argument("--cache", help="Persistent GEDI cache directory "
-                                   "(default: OUT/gedi_cache)")
-    p.add_argument("--resolution", type=float, default=0.0002695,
-                   help="Interpolation grid step in degrees (~30 m)")
-    p.add_argument("--sigma", type=int, default=2,
-                   help="Gaussian σ for residual-relief smoothing")
+    p.add_argument(
+        "--cache", help="Persistent GEDI cache directory " "(default: OUT/gedi_cache)"
+    )
+    p.add_argument(
+        "--resolution",
+        type=float,
+        default=0.0002695,
+        help="Interpolation grid step in degrees (~30 m)",
+    )
+    p.add_argument(
+        "--sigma", type=int, default=2, help="Gaussian σ for residual-relief smoothing"
+    )
     # temporal
-    p.add_argument("--years", type=int, default=8,
-                   help="Most-recent N years (ignored if --start)")
-    p.add_argument("--start", metavar="YYYY-MM-DD",
-                   help="Start date (overrides --years)")
-    p.add_argument("--end",   metavar="YYYY-MM-DD", default=today.isoformat(),
-                   help="End date (default: today)")
+    p.add_argument(
+        "--years", type=int, default=8, help="Most-recent N years (ignored if --start)"
+    )
+    p.add_argument(
+        "--start", metavar="YYYY-MM-DD", help="Start date (overrides --years)"
+    )
+    p.add_argument(
+        "--end",
+        metavar="YYYY-MM-DD",
+        default=today.isoformat(),
+        help="End date (default: today)",
+    )
     args = p.parse_args()
 
     # resolve dates
     if args.start:
         time_start = args.start
     else:
-        time_start = (today - dt.timedelta(days=args.years*365)).isoformat()
+        time_start = (today - dt.timedelta(days=args.years * 365)).isoformat()
     time_end = args.end
 
     bbox = tuple(args.bbox)
-    out  = Path(args.out).expanduser()
+    out = Path(args.out).expanduser()
     out.mkdir(parents=True, exist_ok=True)
 
     cache_dir = Path(args.cache or (out / "gedi_cache")).expanduser()
