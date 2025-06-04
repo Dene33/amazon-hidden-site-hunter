@@ -564,10 +564,10 @@ def create_combined_map(
 
         if bbox and not is_data_vis:
             xmin, ymin, xmax, ymax = bbox
-            if is_mercator_file:
-                t = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
-                xmin, ymin = t.transform(xmin, ymin)
-                xmax, ymax = t.transform(xmax, ymax)
+            # if is_mercator_file:
+            #     t = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+            #     xmin, ymin = t.transform(xmin, ymin)
+            #     xmax, ymax = t.transform(xmax, ymax)
             bounds = [[ymin, xmin], [ymax, xmax]]
 
         # Decide whether Leaflet should project the image
