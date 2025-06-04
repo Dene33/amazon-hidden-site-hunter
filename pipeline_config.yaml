@@ -32,5 +32,5 @@ step4:
   debug: true
 
 step5:
-  enabled: false
-  include_data_vis: false
+  enabled: true
+  include_data_vis: true
