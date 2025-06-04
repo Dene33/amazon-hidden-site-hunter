@@ -553,12 +553,13 @@ def create_combined_map(
         # Create the image overlay
         bounds = OVERLAY_BOUNDS
 
-        if img_name_simple.startswith("copernicus"):
+        base_vis = os.path.join(BASE_DIR, "data_vis")
+        is_data_vis = os.path.commonpath([img_path, base_vis]) == base_vis
+
+        if img_name_simple.startswith("copernicus") and is_data_vis:
             # Use a different set of bounds for cleaned images
             bounds = OVERLAY_BOUNDS_COPERNICUS_2
 
-        base_vis = os.path.join(BASE_DIR, "data_vis")
-        is_data_vis = os.path.commonpath([img_path, base_vis]) == base_vis
         is_mercator_file = img_name_simple.endswith("_3857")
 
         if bbox and not is_data_vis:
