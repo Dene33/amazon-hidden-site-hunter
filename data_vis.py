@@ -553,20 +553,21 @@ def create_combined_map(
         # Create the image overlay
         bounds = OVERLAY_BOUNDS
 
-        if img_name_simple.startswith("copernicus"):
+        base_vis = os.path.join(BASE_DIR, "data_vis")
+        is_data_vis = os.path.commonpath([img_path, base_vis]) == base_vis
+
+        if img_name_simple.startswith("copernicus") and is_data_vis:
             # Use a different set of bounds for cleaned images
             bounds = OVERLAY_BOUNDS_COPERNICUS_2
 
-        base_vis = os.path.join(BASE_DIR, "data_vis")
-        is_data_vis = os.path.commonpath([img_path, base_vis]) == base_vis
         is_mercator_file = img_name_simple.endswith("_3857")
 
         if bbox and not is_data_vis:
             xmin, ymin, xmax, ymax = bbox
-            if is_mercator_file:
-                t = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
-                xmin, ymin = t.transform(xmin, ymin)
-                xmax, ymax = t.transform(xmax, ymax)
+            # if is_mercator_file:
+            #     t = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+            #     xmin, ymin = t.transform(xmin, ymin)
+            #     xmax, ymax = t.transform(xmax, ymax)
             bounds = [[ymin, xmin], [ymax, xmax]]
 
         # Decide whether Leaflet should project the image
