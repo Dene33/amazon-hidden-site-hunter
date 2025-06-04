@@ -485,7 +485,7 @@ def detect_anomalies(
             continue
         cy, cx = reg.centroid
         lon = float(np.interp(cx, np.arange(xi.shape[1]), xi[0]))
-        lat = float(np.interp(cy, np.arange(yi.shape[0]), yi[:, 0]))
+        lat = float(np.interp(cy, np.arange(yi.shape[0]), yi[::-1, 0]))
         score = float(np.nanmax(np.abs(rrm_smooth[reg.slice])))
         blobs.append({"geometry": Point(lon, lat), "score": score})
 
@@ -497,7 +497,7 @@ def detect_anomalies(
         plt.imshow(
             rrm_smooth,
             extent=extent,
-            origin="lower",
+            origin="upper",
             cmap="RdBu_r",
         )
         plt.colorbar(label="Smoothed residual (m)")
@@ -508,7 +508,7 @@ def detect_anomalies(
         plt.close()
 
         fig_c, ax_c = plt.subplots(figsize=(8, 8))
-        ax_c.imshow(rrm_smooth, extent=extent, origin="lower", cmap="RdBu_r")
+        ax_c.imshow(rrm_smooth, extent=extent, origin="upper", cmap="RdBu_r")
         ax_c.axis("off")
         plt.savefig(
             debug_dir / "rrm_smooth_clean.png",
@@ -519,7 +519,7 @@ def detect_anomalies(
         plt.close(fig_c)
 
         plt.figure(figsize=(8, 6))
-        plt.imshow(mask, extent=extent, origin="lower", cmap="gray")
+        plt.imshow(mask, extent=extent, origin="upper", cmap="gray")
         plt.title("Threshold Mask")
         plt.xlabel("Longitude")
         plt.ylabel("Latitude")
@@ -527,7 +527,7 @@ def detect_anomalies(
         plt.close()
 
         fig_c, ax_c = plt.subplots(figsize=(8, 8))
-        ax_c.imshow(mask, extent=extent, origin="lower", cmap="gray")
+        ax_c.imshow(mask, extent=extent, origin="upper", cmap="gray")
         ax_c.axis("off")
         plt.savefig(
             debug_dir / "threshold_mask_clean.png",
@@ -542,7 +542,7 @@ def detect_anomalies(
             plt.imshow(
                 rrm_smooth,
                 extent=extent,
-                origin="lower",
+                origin="upper",
                 cmap="RdBu_r",
             )
             xs = [b["geometry"].x for b in blobs]
@@ -555,7 +555,7 @@ def detect_anomalies(
             plt.close()
 
             fig_c, ax_c = plt.subplots(figsize=(8, 8))
-            ax_c.imshow(rrm_smooth, extent=extent, origin="lower", cmap="RdBu_r")
+            ax_c.imshow(rrm_smooth, extent=extent, origin="upper", cmap="RdBu_r")
             ax_c.scatter(xs, ys, c="yellow", edgecolor="black", s=30)
             ax_c.axis("off")
             plt.savefig(
