@@ -120,12 +120,12 @@ def test_save_residual_png(tmp_path: Path):
 
 
 def test_save_anomaly_points_png(tmp_path: Path):
-    xi = np.linspace(0, 1, 10)
-    yi = np.linspace(0, 1, 20)
+    xi = np.linspace(0, 1, 5)
+    yi = np.linspace(0, 1, 5)
     xi_m, yi_m = np.meshgrid(xi, yi)
     gdf = gpd.GeoDataFrame(
         {
-            "geometry": [Point(0.5, 0.5), Point(0.8, 0.2)],
+            "geometry": [Point(0.5, 0.0), Point(0.5, 1.0)],
             "score": [1, 2],
         },
         crs="EPSG:4326",
@@ -135,5 +135,9 @@ def test_save_anomaly_points_png(tmp_path: Path):
     assert out.exists()
     from PIL import Image
     with Image.open(out) as img:
+        arr = np.array(img)
         assert img.size == (xi_m.shape[1], yi_m.shape[0])
         assert img.mode == "RGBA"
+        # north anomaly at top row, south anomaly at bottom row
+        assert arr[0, 2, 3] > 0
+        assert arr[-1, 2, 3] > 0

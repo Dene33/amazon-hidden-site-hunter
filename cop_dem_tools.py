@@ -216,7 +216,7 @@ def save_anomaly_points_png(
 
     if anomalies is not None and not anomalies.empty:
         xmin, xmax = xi[0, 0], xi[0, -1]
-        ymin, ymax = yi[-1, 0], yi[0, 0]
+        ymin, ymax = yi.min(), yi.max()
 
         for _, row in anomalies.iterrows():
             lon = row.geometry.x
