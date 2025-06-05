@@ -12,6 +12,7 @@ from cop_dem_tools import (
     save_dem_png,
     dem_bounds,
     save_surface_png,
+    save_residual_png,
 )
 
 
@@ -100,4 +101,15 @@ def test_save_surface_png(tmp_path: Path):
     from PIL import Image
     with Image.open(out) as img:
         assert img.size == (xi_m.shape[1], yi_m.shape[0])
+        assert img.mode == "RGBA"
+
+
+def test_save_residual_png(tmp_path: Path):
+    rrm = np.array([[1, -1], [0, 2]], dtype=float)
+    out = tmp_path / "rrm.png"
+    save_residual_png(rrm, out)
+    assert out.exists()
+    from PIL import Image
+    with Image.open(out) as img:
+        assert img.size == (rrm.shape[1], rrm.shape[0])
         assert img.mode == "RGBA"

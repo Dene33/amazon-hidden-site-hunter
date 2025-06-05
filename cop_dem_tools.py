@@ -171,6 +171,35 @@ def save_surface_png(
     return out_path
 
 
+def save_residual_png(
+    rrm: np.ndarray,
+    out_path: Path,
+    *,
+    cmap: str = "RdBu_r",
+) -> Path:
+    """Save a residual relief model as a PNG overlay.
+
+    Colors are scaled symmetrically around zero so that elevations and
+    depressions share the same intensity.
+    """
+
+    arr = rrm.astype(float)
+    arr[arr == -9999] = np.nan
+
+    vmax = np.nanmax(np.abs(arr))
+    vmax = vmax if np.isfinite(vmax) and vmax > 0 else 1
+    norm = (arr + vmax) / (2 * vmax)
+
+    cm = plt.get_cmap(cmap)
+    rgba = cm(norm)
+    rgba[..., -1] = np.where(np.isnan(arr), 0, rgba[..., -1])
+
+    img = (rgba * 255).round().astype(np.uint8)
+    Image.fromarray(img).save(out_path)
+    console.log(f"[cyan]Wrote {out_path}")
+    return out_path
+
+
 def dem_bounds(dem_path: Path) -> tuple[float, float, float, float]:
     """Return the bounding box of a DEM as (xmin, ymin, xmax, ymax)."""
     with rio.open(dem_path) as src:

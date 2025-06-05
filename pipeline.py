@@ -22,12 +22,12 @@ from cop_dem_tools import (
     crop_to_bbox,
     save_dem_png,
     save_surface_png,
+    save_residual_png,
 )
 
 # Reuse visualization helpers
 from preview_pipeline import (
     visualize_gedi_points,
-    visualize_residual_relief,
     visualize_anomalies,
     create_interactive_map,
 )
@@ -125,7 +125,10 @@ def step_residual_relief(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path
     xi, yi, zi = bearth
     rrm = residual_relief((xi, yi, zi), dem_path)
     if cfg.get("visualize", True):
-        visualize_residual_relief(xi, yi, zi, dem_path, base)
+        save_residual_png(
+            rrm,
+            base / "residual_relief_clean.png",
+        )
     return rrm
 
 
