@@ -292,9 +292,11 @@ def interpolate_bare_earth(
     xi_m, yi_m, zi : 2-D lon grid, lat grid, interpolated surface
     """
     xmin, ymin, xmax, ymax = bbox
-    xi = np.arange(xmin, xmax + res, res, dtype=np.float32)
-    yi = np.arange(ymin, ymax + res, res, dtype=np.float32)
-    xi_m, yi_m = np.meshgrid(xi, yi, indexing='xy')
+    nx = int(round((xmax - xmin) / res)) + 1
+    ny = int(round((ymax - ymin) / res)) + 1
+    xi = np.linspace(xmin, xmax, nx, dtype=np.float32)
+    yi = np.linspace(ymin, ymax, ny, dtype=np.float32)
+    xi_m, yi_m = np.meshgrid(xi, yi, indexing="xy")
 
     # Prepare point cloud
     pts  = np.column_stack((gdf.geometry.x.values,
