@@ -571,15 +571,17 @@ def create_combined_map(
             bounds = [[ymin, xmin], [ymax, xmax]]
 
         # Decide whether Leaflet should project the image
-        if is_mercator_file:
-            use_mercator = False
-            img_input = f"file://{img_path}"
-        else:
-            use_mercator = not is_data_vis
-            if use_mercator:
-                img_input = np.asarray(Image.open(img_path))
-            else:
-                img_input = f"file://{img_path}"
+        # if is_mercator_file:
+        #     use_mercator = False
+        #     img_input = f"file://{img_path}"
+        # else:
+        #     use_mercator = not is_data_vis
+        #     if use_mercator:
+        #         img_input = np.asarray(Image.open(img_path))
+        #     else:
+        #         img_input = f"file://{img_path}"
+        use_mercator = True
+        img_input = np.asarray(Image.open(img_path))
         
         # Create a unique ID for this image's control
         img_id = f"img_{img_name_simple.replace(' ', '_').replace('.', '_')}"
