@@ -132,6 +132,13 @@ def save_dem_png(dem_path: Path, out_path: Path, cmap: str = "terrain") -> Path:
     console.log(f"[cyan]Wrote {out_path}")
     return out_path
 
+
+def dem_bounds(dem_path: Path) -> tuple[float, float, float, float]:
+    """Return the bounding box of a DEM as (xmin, ymin, xmax, ymax)."""
+    with rio.open(dem_path) as src:
+        b = src.bounds
+    return (b.left, b.bottom, b.right, b.top)
+
 def dem_map(mosaic_path: Path, crop_path: Path, bbox: tuple[float, float, float, float], zoom_start: int = 9) -> folium.Map:
     lon_c = (bbox[0] + bbox[2]) / 2
     lat_c = (bbox[1] + bbox[3]) / 2

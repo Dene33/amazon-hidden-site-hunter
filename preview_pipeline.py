@@ -818,6 +818,18 @@ def create_interactive_map(points, anomalies, bbox, outdir, include_data_vis=Fal
         lidar_df = ref_lidar
         image_files.extend(ref_images)
 
+    # Determine custom bounds for the DEM mosaic if present
+    image_bounds = {}
+    if mosaic_png:
+        mosaic_tif = outdir / "cop90_mosaic.tif"
+        if mosaic_tif.exists():
+            with rio.open(mosaic_tif) as src:
+                b = src.bounds
+                image_bounds[str(Path(mosaic_png[0]).resolve())] = [
+                    [b.bottom, b.left],
+                    [b.top, b.right],
+                ]
+
     map_obj = create_combined_map(
         arch_dataframes,
         lidar_df,
@@ -825,6 +837,7 @@ def create_interactive_map(points, anomalies, bbox, outdir, include_data_vis=Fal
         points=points,
         anomalies=anomalies,
         bbox=bbox,
+        image_bounds=image_bounds,
     )
 
     output_path = outdir / "interactive_map.html"

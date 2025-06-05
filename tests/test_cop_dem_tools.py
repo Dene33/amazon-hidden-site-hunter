@@ -10,6 +10,7 @@ from cop_dem_tools import (
     crop_to_bbox,
     _dem_to_overlay,
     save_dem_png,
+    dem_bounds,
 )
 
 
@@ -78,3 +79,10 @@ def test_save_dem_png(tmp_path: Path):
     with Image.open(out) as img:
         assert img.size == (100, 100)
         assert img.mode == "RGBA"
+
+
+def test_dem_bounds(tmp_path: Path):
+    t = tmp_path / "tile.tif"
+    _create_tile(t, 9, (1, 2, 3, 4))
+    bounds = dem_bounds(t)
+    assert bounds == pytest.approx((1, 2, 3, 4))
