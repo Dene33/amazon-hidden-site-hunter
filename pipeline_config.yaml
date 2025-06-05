@@ -30,6 +30,7 @@ step4:
   visualize: true
   save_json: true
   debug: true
+  debug_project: true
 
 step5:
   enabled: true

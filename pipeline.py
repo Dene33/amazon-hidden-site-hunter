@@ -135,6 +135,7 @@ def step_detect_anomalies(cfg: Dict[str, Any], rrm, xi, yi, base: Path):
         amp_thresh=cfg.get("amp_thresh", 1.0),
         size_thresh_m=cfg.get("size_thresh_m", 200),
         debug_dir=(base / "debug") if cfg.get("debug", False) else None,
+        project=cfg.get("debug_project", False),
     )
     if cfg.get("visualize", True):
         visualize_anomalies(anomalies, rrm, xi, yi, cfg.get("sigma", 2), None, base)

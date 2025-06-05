@@ -36,6 +36,7 @@ from scipy.spatial import cKDTree
 from rasterio import windows
 from rasterio.merge import merge
 from rasterio.transform import from_origin
+from pyproj import Transformer
 
 console = Console()
 
@@ -450,8 +451,28 @@ def detect_anomalies(
     amp_thresh: float = 1.0,
     size_thresh_m: float = 200,
     debug_dir: Path | None = None,
+    project: bool = False,
 ):
-    """Identify potential anomalies in the residual relief model."""
+    """Identify potential anomalies in the residual relief model.
+
+    Parameters
+    ----------
+    rrm : array-like
+        Residual relief model.
+    xi, yi : array-like
+        Meshgrid coordinates in degrees (lon/lat).
+    sigma : float, optional
+        Gaussian smoothing factor.
+    amp_thresh : float, optional
+        Amplitude threshold for detection.
+    size_thresh_m : float, optional
+        Minimum blob size in metres.
+    debug_dir : Path or None, optional
+        If provided, debug images are written here.
+    project : bool, optional
+        When ``True`` and ``debug_dir`` is set, debug images are reprojected
+        to Web Mercator (EPSG:3857) for accurate map overlays.
+    """
 
     rrm_smooth = _nan_gaussian_filter(rrm, sigma=sigma)
     mask = np.abs(rrm_smooth) >= amp_thresh
@@ -475,10 +496,57 @@ def detect_anomalies(
         debug_dir = Path(debug_dir)
         debug_dir.mkdir(parents=True, exist_ok=True)
 
+        # By default use the lon/lat grid
+        rrm_plot = rrm_smooth
+        mask_plot = mask
+        extent_plot = extent
+        xs_plot = [b["geometry"].x for b in blobs]
+        ys_plot = [b["geometry"].y for b in blobs]
+        suffix = ""
+
+        if project:
+            res_x = xi[0, 1] - xi[0, 0]
+            res_y = yi[1, 0] - yi[0, 0]
+            src_transform = from_origin(
+                xi[0, 0], yi.max() + res_y, res_x, res_y
+            )
+            dst_crs = "EPSG:3857"
+            transform, width, height = calculate_default_transform(
+                "EPSG:4326", dst_crs, xi.shape[1], yi.shape[0],
+                xi.min(), yi.min(), xi.max(), yi.max()
+            )
+
+            rrm_plot = np.full((height, width), np.nan, dtype=np.float32)
+            reproject(
+                rrm_smooth, rrm_plot,
+                src_transform=src_transform, src_crs="EPSG:4326",
+                dst_transform=transform, dst_crs=dst_crs,
+                resampling=Resampling.bilinear,
+                src_nodata=np.nan, dst_nodata=np.nan,
+                init_dest_nodata=True
+            )
+
+            mask_plot = np.full((height, width), np.nan, dtype=np.float32)
+            reproject(
+                mask.astype(np.float32), mask_plot,
+                src_transform=src_transform, src_crs="EPSG:4326",
+                dst_transform=transform, dst_crs=dst_crs,
+                resampling=Resampling.nearest,
+                src_nodata=0, dst_nodata=np.nan,
+                init_dest_nodata=True
+            )
+
+            bounds = rio.transform.array_bounds(height, width, transform)
+            extent_plot = [bounds[0], bounds[2], bounds[1], bounds[3]]
+
+            transformer = Transformer.from_crs("EPSG:4326", dst_crs, always_xy=True)
+            xs_plot, ys_plot = transformer.transform(xs_plot, ys_plot)
+            suffix = "_3857"
+
         plt.figure(figsize=(8, 6))
         plt.imshow(
-            rrm_smooth,
-            extent=extent,
+            rrm_plot,
+            extent=extent_plot,
             origin="upper",
             cmap="RdBu_r",
         )
@@ -486,14 +554,14 @@ def detect_anomalies(
         plt.title("Smoothed Residual Relief")
         plt.xlabel("Longitude")
         plt.ylabel("Latitude")
-        plt.savefig(debug_dir / "rrm_smooth.png", dpi=150, bbox_inches="tight")
+        plt.savefig(debug_dir / f"rrm_smooth{suffix}.png", dpi=150, bbox_inches="tight")
         plt.close()
 
         fig_c, ax_c = plt.subplots(figsize=(8, 8))
-        ax_c.imshow(rrm_smooth, extent=extent, origin="upper", cmap="RdBu_r")
+        ax_c.imshow(rrm_plot, extent=extent_plot, origin="upper", cmap="RdBu_r")
         ax_c.axis("off")
         plt.savefig(
-            debug_dir / "rrm_smooth_clean.png",
+            debug_dir / f"rrm_smooth{suffix}_clean.png",
             dpi=150,
             bbox_inches="tight",
             pad_inches=0,
@@ -501,18 +569,18 @@ def detect_anomalies(
         plt.close(fig_c)
 
         plt.figure(figsize=(8, 6))
-        plt.imshow(mask, extent=extent, origin="upper", cmap="gray")
+        plt.imshow(mask_plot, extent=extent_plot, origin="upper", cmap="gray")
         plt.title("Threshold Mask")
         plt.xlabel("Longitude")
         plt.ylabel("Latitude")
-        plt.savefig(debug_dir / "threshold_mask.png", dpi=150, bbox_inches="tight")
+        plt.savefig(debug_dir / f"threshold_mask{suffix}.png", dpi=150, bbox_inches="tight")
         plt.close()
 
         fig_c, ax_c = plt.subplots(figsize=(8, 8))
-        ax_c.imshow(mask, extent=extent, origin="upper", cmap="gray")
+        ax_c.imshow(mask_plot, extent=extent_plot, origin="upper", cmap="gray")
         ax_c.axis("off")
         plt.savefig(
-            debug_dir / "threshold_mask_clean.png",
+            debug_dir / f"threshold_mask{suffix}_clean.png",
             dpi=150,
             bbox_inches="tight",
             pad_inches=0,
@@ -522,26 +590,24 @@ def detect_anomalies(
         if blobs:
             plt.figure(figsize=(8, 6))
             plt.imshow(
-                rrm_smooth,
-                extent=extent,
+                rrm_plot,
+                extent=extent_plot,
                 origin="upper",
                 cmap="RdBu_r",
             )
-            xs = [b["geometry"].x for b in blobs]
-            ys = [b["geometry"].y for b in blobs]
-            plt.scatter(xs, ys, c="yellow", edgecolor="black", s=30)
+            plt.scatter(xs_plot, ys_plot, c="yellow", edgecolor="black", s=30)
             plt.title("Detected Anomalies")
             plt.xlabel("Longitude")
             plt.ylabel("Latitude")
-            plt.savefig(debug_dir / "anomalies.png", dpi=150, bbox_inches="tight")
+            plt.savefig(debug_dir / f"anomalies{suffix}.png", dpi=150, bbox_inches="tight")
             plt.close()
 
             fig_c, ax_c = plt.subplots(figsize=(8, 8))
-            ax_c.imshow(rrm_smooth, extent=extent, origin="upper", cmap="RdBu_r")
-            ax_c.scatter(xs, ys, c="yellow", edgecolor="black", s=30)
+            ax_c.imshow(rrm_plot, extent=extent_plot, origin="upper", cmap="RdBu_r")
+            ax_c.scatter(xs_plot, ys_plot, c="yellow", edgecolor="black", s=30)
             ax_c.axis("off")
             plt.savefig(
-                debug_dir / "anomalies_clean.png",
+                debug_dir / f"anomalies{suffix}_clean.png",
                 dpi=150,
                 bbox_inches="tight",
                 pad_inches=0,
