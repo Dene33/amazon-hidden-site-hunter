@@ -4,6 +4,9 @@ from rasterio.transform import from_bounds
 from pathlib import Path
 import pytest
 
+import geopandas as gpd
+from shapely.geometry import Point
+
 from cop_dem_tools import (
     cop_tile_url,
     mosaic_cop_tiles,
@@ -13,6 +16,7 @@ from cop_dem_tools import (
     dem_bounds,
     save_surface_png,
     save_residual_png,
+    save_anomaly_points_png,
 )
 
 
@@ -112,4 +116,24 @@ def test_save_residual_png(tmp_path: Path):
     from PIL import Image
     with Image.open(out) as img:
         assert img.size == (rrm.shape[1], rrm.shape[0])
+        assert img.mode == "RGBA"
+
+
+def test_save_anomaly_points_png(tmp_path: Path):
+    xi = np.linspace(0, 1, 10)
+    yi = np.linspace(0, 1, 20)
+    xi_m, yi_m = np.meshgrid(xi, yi)
+    gdf = gpd.GeoDataFrame(
+        {
+            "geometry": [Point(0.5, 0.5), Point(0.8, 0.2)],
+            "score": [1, 2],
+        },
+        crs="EPSG:4326",
+    )
+    out = tmp_path / "anom.png"
+    save_anomaly_points_png(gdf, xi_m, yi_m, out)
+    assert out.exists()
+    from PIL import Image
+    with Image.open(out) as img:
+        assert img.size == (xi_m.shape[1], yi_m.shape[0])
         assert img.mode == "RGBA"

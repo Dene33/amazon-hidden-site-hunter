@@ -23,12 +23,12 @@ from cop_dem_tools import (
     save_dem_png,
     save_surface_png,
     save_residual_png,
+    save_anomaly_points_png,
 )
 
 # Reuse visualization helpers
 from preview_pipeline import (
     visualize_gedi_points,
-    visualize_anomalies,
     create_interactive_map,
 )
 
@@ -146,7 +146,12 @@ def step_detect_anomalies(cfg: Dict[str, Any], rrm, xi, yi, base: Path):
         debug_dir=(base / "debug") if cfg.get("debug", False) else None,
     )
     if cfg.get("visualize", True):
-        visualize_anomalies(anomalies, rrm, xi, yi, cfg.get("sigma", 2), None, base)
+        save_anomaly_points_png(
+            anomalies,
+            xi,
+            yi,
+            base / "detected_anomalies_clean.png",
+        )
     if cfg.get("save_json", True):
         out = base / "anomalies.geojson"
         anomalies.to_file(out, driver="GeoJSON")

@@ -12,7 +12,7 @@ from rasterio.merge import merge
 from rasterio.mask import mask
 from shapely.geometry import box, mapping
 from rich.console import Console
-from PIL import Image
+from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
 
 console = Console()
@@ -196,6 +196,40 @@ def save_residual_png(
 
     img = (rgba * 255).round().astype(np.uint8)
     Image.fromarray(img).save(out_path)
+    console.log(f"[cyan]Wrote {out_path}")
+    return out_path
+
+
+def save_anomaly_points_png(
+    anomalies,
+    xi: np.ndarray,
+    yi: np.ndarray,
+    out_path: Path,
+    *,
+    color: tuple[int, int, int, int] = (255, 255, 0, 255),
+    radius: int = 4,
+) -> Path:
+    """Save detected anomalies as small circle markers on a transparent PNG."""
+
+    img = Image.new("RGBA", (xi.shape[1], yi.shape[0]), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+
+    if anomalies is not None and not anomalies.empty:
+        xmin, xmax = xi[0, 0], xi[0, -1]
+        ymin, ymax = yi[-1, 0], yi[0, 0]
+
+        for _, row in anomalies.iterrows():
+            lon = row.geometry.x
+            lat = row.geometry.y
+            px = int(round((lon - xmin) / (xmax - xmin) * (xi.shape[1] - 1)))
+            py = int(round((ymax - lat) / (ymax - ymin) * (yi.shape[0] - 1)))
+            draw.ellipse(
+                (px - radius, py - radius, px + radius, py + radius),
+                fill=color,
+                outline=(0, 0, 0, 255),
+            )
+
+    img.save(out_path)
     console.log(f"[cyan]Wrote {out_path}")
     return out_path
 
