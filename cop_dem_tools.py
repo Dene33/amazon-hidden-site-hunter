@@ -133,6 +133,44 @@ def save_dem_png(dem_path: Path, out_path: Path, cmap: str = "terrain") -> Path:
     return out_path
 
 
+def save_surface_png(
+    xi: np.ndarray,
+    yi: np.ndarray,
+    zi: np.ndarray,
+    out_path: Path,
+    *,
+    cmap: str = "terrain",
+) -> Path:
+    """Save an interpolated surface as a PNG overlay.
+
+    Parameters
+    ----------
+    xi, yi : 2-D arrays
+        Longitude and latitude grids as returned by :func:`interpolate_bare_earth`.
+    zi : 2-D array
+        Interpolated elevations.
+    out_path : Path
+        Where to save the PNG file.
+    cmap : str, optional
+        Matplotlib colormap name for shading.
+    """
+
+    arr = zi.astype(float)
+    arr[arr == -9999] = np.nan  # legacy nodata guard
+
+    vmin, vmax = np.nanmin(arr), np.nanmax(arr)
+    norm = (arr - vmin) / max(vmax - vmin, 1)
+
+    cm = plt.get_cmap(cmap)
+    rgba = cm(norm)
+    rgba[..., -1] = np.where(np.isnan(arr), 0, rgba[..., -1])
+
+    img = (rgba * 255).round().astype(np.uint8)
+    Image.fromarray(img).save(out_path)
+    console.log(f"[cyan]Wrote {out_path}")
+    return out_path
+
+
 def dem_bounds(dem_path: Path) -> tuple[float, float, float, float]:
     """Return the bounding box of a DEM as (xmin, ymin, xmax, ymax)."""
     with rio.open(dem_path) as src:

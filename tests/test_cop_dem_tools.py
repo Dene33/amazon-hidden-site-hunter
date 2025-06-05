@@ -11,6 +11,7 @@ from cop_dem_tools import (
     _dem_to_overlay,
     save_dem_png,
     dem_bounds,
+    save_surface_png,
 )
 
 
@@ -86,3 +87,17 @@ def test_dem_bounds(tmp_path: Path):
     _create_tile(t, 9, (1, 2, 3, 4))
     bounds = dem_bounds(t)
     assert bounds == pytest.approx((1, 2, 3, 4))
+
+
+def test_save_surface_png(tmp_path: Path):
+    xi = np.linspace(0, 1, 10)
+    yi = np.linspace(0, 1, 20)
+    xi_m, yi_m = np.meshgrid(xi, yi)
+    zi = xi_m + yi_m
+    out = tmp_path / "surf.png"
+    save_surface_png(xi_m, yi_m, zi, out)
+    assert out.exists()
+    from PIL import Image
+    with Image.open(out) as img:
+        assert img.size == (xi_m.shape[1], yi_m.shape[0])
+        assert img.mode == "RGBA"

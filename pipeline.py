@@ -21,12 +21,12 @@ from cop_dem_tools import (
     mosaic_cop_tiles,
     crop_to_bbox,
     save_dem_png,
+    save_surface_png,
 )
 
 # Reuse visualization helpers
 from preview_pipeline import (
     visualize_gedi_points,
-    visualize_bare_earth,
     visualize_residual_relief,
     visualize_anomalies,
     create_interactive_map,
@@ -109,11 +109,12 @@ def step_bare_earth(cfg: Dict[str, Any], bbox: Tuple[float, float, float, float]
         cfg.get("resolution", 0.0002695),
     )
     if cfg.get("visualize", True):
-        points = [
-            (geom.y, geom.x, elev)
-            for geom, elev in zip(gedi.geometry, gedi["elev_lowestmode"])
-        ]
-        visualize_bare_earth(points, bbox, cfg.get("resolution", 0.0002695), base)
+        save_surface_png(
+            xi,
+            yi,
+            zi,
+            base / "bare_earth_surface_clean.png",
+        )
     return xi, yi, zi
 
 
