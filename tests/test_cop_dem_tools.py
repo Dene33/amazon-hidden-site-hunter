@@ -52,6 +52,11 @@ def test_mosaic_and_crop(tmp_path: Path):
         data = src.read(1)
         assert np.isfinite(data).all()
 
+    # Save mosaic as PNG and ensure it exists
+    png = tmp_path / "mosaic.png"
+    save_dem_png(mosaic, png)
+    assert png.exists()
+
 
 def test_dem_to_overlay(tmp_path: Path):
     t = tmp_path / "tile.tif"

@@ -77,6 +77,7 @@ def step_fetch_data(
         crop = crop_to_bbox(mosaic, bbox, base / "cop90_crop.tif")
         dem_path = crop
         if cfg.get("visualize", True):
+            save_dem_png(mosaic, base / "copernicus_dem_mosaic_hillshade.png")
             save_dem_png(crop, base / "copernicus_dem_hillshade.png")
 
     if cfg.get("fetch_gedi_points", {}).get("enabled", True):
