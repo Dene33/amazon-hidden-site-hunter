@@ -20,11 +20,11 @@ from cop_dem_tools import (
     fetch_cop_tiles,
     mosaic_cop_tiles,
     crop_to_bbox,
+    save_dem_png,
 )
 
 # Reuse visualization helpers
 from preview_pipeline import (
-    visualize_copernicus_dem,
     visualize_gedi_points,
     visualize_bare_earth,
     visualize_residual_relief,
@@ -77,7 +77,7 @@ def step_fetch_data(
         crop = crop_to_bbox(mosaic, bbox, base / "cop90_crop.tif")
         dem_path = crop
         if cfg.get("visualize", True):
-            visualize_copernicus_dem(crop, bbox, base, bare=True)
+            save_dem_png(crop, base / "copernicus_dem_hillshade.png")
 
     if cfg.get("fetch_gedi_points", {}).get("enabled", True):
         console.rule("[bold green]Fetch GEDI footprints")

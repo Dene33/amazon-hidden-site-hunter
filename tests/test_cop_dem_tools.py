@@ -4,7 +4,13 @@ from rasterio.transform import from_bounds
 from pathlib import Path
 import pytest
 
-from cop_dem_tools import cop_tile_url, mosaic_cop_tiles, crop_to_bbox, _dem_to_overlay
+from cop_dem_tools import (
+    cop_tile_url,
+    mosaic_cop_tiles,
+    crop_to_bbox,
+    _dem_to_overlay,
+    save_dem_png,
+)
 
 
 def _create_tile(path: Path, value: float, bounds: tuple[float, float, float, float], size: int = 100) -> None:
@@ -55,3 +61,15 @@ def test_dem_to_overlay(tmp_path: Path):
     assert rgba.shape[2] == 4
     assert bounds[0][0] == pytest.approx(0)
     assert bounds[1][1] == pytest.approx(1)
+
+
+def test_save_dem_png(tmp_path: Path):
+    t = tmp_path / "tile.tif"
+    out = tmp_path / "out.png"
+    _create_tile(t, 7, (0, 0, 1, 1))
+    save_dem_png(t, out)
+    assert out.exists()
+    from PIL import Image
+    with Image.open(out) as img:
+        assert img.size == (100, 100)
+        assert img.mode == "RGBA"

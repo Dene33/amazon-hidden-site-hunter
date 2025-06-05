@@ -12,6 +12,7 @@ from rasterio.merge import merge
 from rasterio.mask import mask
 from shapely.geometry import box, mapping
 from rich.console import Console
+from PIL import Image
 import matplotlib.pyplot as plt
 
 console = Console()
@@ -120,6 +121,16 @@ def _dem_to_overlay(src: rio.DatasetReader, cmap: str = "terrain") -> tuple[np.n
 
     bounds = [[src.bounds.bottom, src.bounds.left], [src.bounds.top, src.bounds.right]]
     return rgba, bounds
+
+
+def save_dem_png(dem_path: Path, out_path: Path, cmap: str = "terrain") -> Path:
+    """Save a DEM as a transparent PNG suitable for Folium overlays."""
+    with rio.open(dem_path) as src:
+        rgba, _ = _dem_to_overlay(src, cmap=cmap)
+    img = (rgba * 255).round().astype(np.uint8)
+    Image.fromarray(img).save(out_path)
+    console.log(f"[cyan]Wrote {out_path}")
+    return out_path
 
 def dem_map(mosaic_path: Path, crop_path: Path, bbox: tuple[float, float, float, float], zoom_start: int = 9) -> folium.Map:
     lon_c = (bbox[0] + bbox[2]) / 2
