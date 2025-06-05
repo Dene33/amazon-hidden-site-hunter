@@ -11,16 +11,20 @@ from rich.console import Console
 
 # Reuse core functions from existing scripts
 from detect_hidden_sites import (
-    fetch_cop_tiles,
     fetch_gedi_points,
     interpolate_bare_earth,
     residual_relief,
     detect_anomalies,
 )
+from cop_dem_tools import (
+    fetch_cop_tiles,
+    mosaic_cop_tiles,
+    crop_to_bbox,
+    dem_map,
+)
 
 # Reuse visualization helpers
 from preview_pipeline import (
-    visualize_copernicus_dem,
     visualize_gedi_points,
     visualize_bare_earth,
     visualize_residual_relief,
@@ -68,12 +72,13 @@ def step_fetch_data(
 
     if cfg.get("fetch_cop_tiles", {}).get("enabled", True):
         console.rule("[bold green]Fetch Copernicus DEM")
-        dem_path = fetch_cop_tiles(tuple(bbox), base)
-        if cfg.get("visualize", True) and dem_path:
-            # Save the full map image
-            visualize_copernicus_dem(dem_path, bbox, base)
-            # Save a clean hillshade version for the interactive map overlay
-            visualize_copernicus_dem(dem_path, bbox, base, bare=True)
+        tiles = fetch_cop_tiles(tuple(bbox), base)
+        mosaic = mosaic_cop_tiles(tiles, base / "cop90_mosaic.tif", bbox)
+        crop = crop_to_bbox(mosaic, bbox, base / "cop90_crop.tif")
+        dem_path = crop
+        if cfg.get("visualize", True):
+            m = dem_map(mosaic, crop, bbox, zoom_start=11)
+            m.save(base / "preview_dem.html")
 
     if cfg.get("fetch_gedi_points", {}).get("enabled", True):
         console.rule("[bold green]Fetch GEDI footprints")

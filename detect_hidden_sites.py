@@ -20,7 +20,6 @@ from typing import Any, List, Tuple
 from getpass import getpass
 
 import geopandas as gpd, numpy as np, pandas as pd, rasterio as rio
-import rasterio.merge as merge
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 from rich.console import Console
 from rich.progress import track
@@ -31,10 +30,9 @@ from skimage.measure import label, regionprops
 from rich.markup import escape
 import matplotlib.pyplot as plt
 
-import earthaccess, h5py, requests
+import earthaccess, h5py
 from scipy.spatial import cKDTree
 from rasterio import windows
-from rasterio.merge import merge
 from rasterio.transform import from_origin
 
 console = Console()
@@ -72,81 +70,21 @@ def ensure_earthdata_login() -> None:
     earthaccess.login(persist=persist, strategy="interactive")
 
 
-def cop_tile_url(lat: float, lon: float) -> str:
-    lat_sw, lon_sw = math.floor(lat), math.floor(lon)
-    ns, ew   = ("N" if lat_sw >= 0 else "S"), ("E" if lon_sw >= 0 else "W")
-    lat_s, lon_s = f"{abs(lat_sw):02d}_00", f"{abs(lon_sw):03d}_00"
-    stem = f"Copernicus_DSM_COG_30_{ns}{lat_s}_{ew}{lon_s}_DEM"
-    return f"{COP_DEM_BASE}/{stem}/{stem}.tif"
+
+from cop_dem_tools import (
+    cop_tile_url,
+    fetch_cop_tiles as _fetch_cop_tiles,
+    mosaic_cop_tiles,
+    crop_to_bbox,
+)
 
 
 def fetch_cop_tiles(bbox: tuple[float, float, float, float], out_dir: Path) -> Path:
-    xmin, ymin, xmax, ymax = bbox
-    dem_path = out_dir / "cop90_mosaic.tif"
-
-    if dem_path.exists():
-        try:
-            with rio.open(dem_path) as src:
-                tag = src.tags().get("bbox")
-                if tag:
-                    saved = tuple(map(float, tag.split(",")))
-                    if all(abs(s - b) < 1e-6 for s, b in zip(saved, bbox)):
-                        console.log(f"[green]Using existing DEM mosaic → {dem_path}")
-                        return dem_path
-                bounds = (src.bounds.left, src.bounds.bottom, src.bounds.right, src.bounds.top)
-                if all(abs(s - b) < 1e-6 for s, b in zip(bounds, bbox)):
-                    console.log(f"[green]Using existing DEM mosaic → {dem_path}")
-                    return dem_path
-        except Exception as e:
-            console.log(f"[yellow]Failed to read existing DEM: {escape(str(e))}")           
-
-    lat_rng = range(int(math.floor(ymin)), int(math.ceil(ymax)) + 1)
-    lon_rng = range(int(math.floor(xmin)), int(math.ceil(xmax)) + 1)
-
-    tif_paths: list[Path] = []
-    for lat in lat_rng:
-        for lon in lon_rng:
-            url   = cop_tile_url(lat, lon)
-            local = out_dir / Path(url).name
-            if not local.exists():
-                console.log(f"Fetching {url}")
-                with requests.get(url, stream=True, timeout=60) as r:
-                    r.raise_for_status()
-                    with open(local, "wb") as fp:
-                        for chunk in r.iter_content(131_072):
-                            fp.write(chunk)
-            tif_paths.append(local)
-
-    if not tif_paths:
-        raise RuntimeError("No Copernicus DEM tiles fetched; check bbox.")
-
-    console.log("Merging + **cropping** DEM tiles")
-    srcs = [rio.open(str(p)) for p in tif_paths]
-
-    with rio.open(tif_paths[0]) as first:
-        nodata_val = first.nodata or -9999     # fallback if tag is missing
-
-    # 🔴  The magic line – merge **only** the pixels inside `bbox`
-    mosaic, transform = merge(srcs, bounds=bbox, precision=30, nodata=nodata_val)
-
-    meta = srcs[0].meta.copy()
-    meta.update(
-        driver     ="GTiff",
-        height     =mosaic.shape[1],
-        width      =mosaic.shape[2],
-        transform  =transform,
-        compress   ="lzw",
-        nodata     =-9999,
-    )
-
-    dem_path = out_dir / "cop90_mosaic.tif"
-    with rio.open(dem_path, "w", **meta) as dst:
-        dst.write(mosaic)
-        dst.update_tags(bbox=",".join(map(str, bbox)))
-
-    for s in srcs:
-        s.close()
-    return dem_path
+    """Download and mosaic Copernicus tiles using :mod:`cop_dem_tools`."""
+    tiles = _fetch_cop_tiles(bbox, out_dir)
+    mosaic = mosaic_cop_tiles(tiles, out_dir / "cop90_mosaic.tif", bbox)
+    crop = crop_to_bbox(mosaic, bbox, out_dir / "cop90_crop.tif")
+    return crop
 
 # ──────────────── GEDI helpers ─────────────────
 
