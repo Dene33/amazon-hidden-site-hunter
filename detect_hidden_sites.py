@@ -124,6 +124,7 @@ def fetch_gedi_points(
     # login
     ensure_earthdata_login()
 
+    console.log("Searching for GEDI granules in bbox:", bbox)
     # search
     granules = earthaccess.search_data(
         short_name = EARTHDATA_SHORT,
