@@ -796,10 +796,10 @@ def create_interactive_map(points, anomalies, bbox, outdir, include_data_vis=Fal
     outdir = Path(outdir)
     # Use only the clean images for overlays and include the DEM hillshade
     image_files = []
-    mosaic_png = list(outdir.glob("copernicus_dem_mosaic_hillshade*.png"))
+    mosaic_png = list(outdir.glob("1_copernicus_dem_mosaic_hillshade*.png"))
     if mosaic_png:
         image_files.append(str(mosaic_png[0].resolve()))
-    hillshade = list(outdir.glob("copernicus_dem_hillshade*.png"))
+    hillshade = list(outdir.glob("1_copernicus_dem_hillshade*.png"))
     if hillshade:
         image_files.append(str(hillshade[0].resolve()))
     image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("*_clean.png")))

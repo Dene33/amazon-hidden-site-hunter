@@ -77,8 +77,8 @@ def step_fetch_data(
         crop = crop_to_bbox(mosaic, bbox, base / "cop90_crop.tif")
         dem_path = crop
         if cfg.get("visualize", True):
-            save_dem_png(mosaic, base / "copernicus_dem_mosaic_hillshade.png")
-            save_dem_png(crop, base / "copernicus_dem_hillshade.png")
+            save_dem_png(mosaic, base / "1_copernicus_dem_mosaic_hillshade.png")
+            save_dem_png(crop, base / "1_copernicus_dem_crop_hillshade.png")
 
     if cfg.get("fetch_gedi_points", {}).get("enabled", True):
         console.rule("[bold green]Fetch GEDI footprints")
@@ -95,6 +95,7 @@ def step_fetch_data(
                 for geom, elev in zip(gedi.geometry, gedi["elev_lowestmode"])
             ]
             visualize_gedi_points(points, bbox, base)
+            console.log(f"[cyan]Wrote {Path(base) / "2_gedi_points_clean.png"}")
 
     return dem_path, gedi
 
@@ -113,7 +114,7 @@ def step_bare_earth(cfg: Dict[str, Any], bbox: Tuple[float, float, float, float]
             xi,
             yi,
             zi,
-            base / "bare_earth_surface_clean.png",
+            base / "3_bare_earth_surface_clean.png",
         )
     return xi, yi, zi
 
@@ -127,7 +128,7 @@ def step_residual_relief(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path
     if cfg.get("visualize", True):
         save_residual_png(
             rrm,
-            base / "residual_relief_clean.png",
+            base / "4_residual_relief_clean.png",
         )
     return rrm
 
@@ -150,7 +151,7 @@ def step_detect_anomalies(cfg: Dict[str, Any], rrm, xi, yi, base: Path):
             anomalies,
             xi,
             yi,
-            base / "detected_anomalies_clean.png",
+            base / "5_detected_anomalies_clean.png",
         )
     if cfg.get("save_json", True):
         out = base / "anomalies.geojson"
