@@ -517,18 +517,18 @@ def visualize_gedi_points(points, bbox, outdir):
             [ymin, ymin, ymax, ymax, ymin], 
             'r-', linewidth=2, label='Area of Interest')
     
-    ax.set_title('GEDI Ground Points')
-    ax.set_xlabel('Longitude')
-    ax.set_ylabel('Latitude')
-    ax.legend()
+    # ax.set_title('GEDI Ground Points')
+    # ax.set_xlabel('Longitude')
+    # ax.set_ylabel('Latitude')
+    # ax.legend()
 
-    ax.set_xlim(xmin, xmax)
-    ax.set_ylim(ymin, ymax)
+    # ax.set_xlim(xmin, xmax)
+    # ax.set_ylim(ymin, ymax)
 
-    out_path = Path(outdir) / "2_gedi_points.png"
-    plt.savefig(out_path, dpi=300, bbox_inches='tight')
-    plt.close(fig)
-    print(f"Saved GEDI points visualization to {out_path}")
+    # out_path = Path(outdir) / "2_gedi_points.png"
+    # plt.savefig(out_path, dpi=300, bbox_inches='tight')
+    # plt.close(fig)
+    # print(f"Saved GEDI points visualization to {out_path}")
 
     # ----- clean version for map overlays -----
     fig2, ax2 = plt.subplots(figsize=(8, 8))
@@ -540,7 +540,6 @@ def visualize_gedi_points(points, bbox, outdir):
     out_path_clean = Path(outdir) / "2_gedi_points_clean.png"
     plt.savefig(out_path_clean, dpi=300, bbox_inches='tight', pad_inches=0)
     plt.close(fig2)
-    print(f"Saved GEDI overlay to {out_path_clean}")
     return True
 
 def visualize_bare_earth(points, bbox, resolution, outdir):
