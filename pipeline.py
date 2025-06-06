@@ -203,11 +203,11 @@ def run_pipeline(config: Dict[str, Any]):
 
     # Prepare points for interactive map
     points = None
-    if gedi is not None:
-        points = [
-            (geom.y, geom.x, elev)
-            for geom, elev in zip(gedi.geometry, gedi["elev_lowestmode"])
-        ]
+    # if gedi is not None:
+    #     points = [
+    #         (geom.y, geom.x, elev)
+    #         for geom, elev in zip(gedi.geometry, gedi["elev_lowestmode"])
+    #     ]
 
     # Step 5 – interactive map
     step_interactive_map(config.get("step5", {}), points, anomalies, bbox, base)
