@@ -353,8 +353,8 @@ def residual_relief(bearth, dem_path: Path):
     # destination grid that matches (xi, yi)
     # Align DEM pixels with the bare-earth grid so that their centres match
     dst_transform = from_origin(
-        xi[0, 0] - res_x / 2,    # xmin at the western edge
-        yi.max() + res_y / 2,    # ymax at the northern edge
+        xi[0, 0],                # xmin
+        yi.max() + res_y,        # ymax (upper edge)
         res_x,                   # pixel width
         res_y                    # pixel height
     )
