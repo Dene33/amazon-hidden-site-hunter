@@ -374,15 +374,15 @@ def load_reference_datasets(base_dir: str = BASE_DIR):
     except Exception as e:  # noqa: BLE001
         print(f"  - Submit data file not found or cannot be read: {e}")
 
-    # 5. Science data
-    try:
-        science_df = read_science_data(
-            os.path.join(base_dir, "data_vis/science_data/science.ade2541_data_s2.csv")
-        )
-        if not science_df.empty:
-            arch_dataframes.append(("Science Data", science_df))
-    except Exception as e:  # noqa: BLE001
-        print(f"  - Science data file not found or cannot be read: {e}")
+    # # 5. Science data
+    # try:
+    #     science_df = read_science_data(
+    #         os.path.join(base_dir, "data_vis/science_data/science.ade2541_data_s2.csv")
+    #     )
+    #     if not science_df.empty:
+    #         arch_dataframes.append(("Science Data", science_df))
+    # except Exception as e:  # noqa: BLE001
+    #     print(f"  - Science data file not found or cannot be read: {e}")
 
     # 6. LiDAR inventory
     try:
