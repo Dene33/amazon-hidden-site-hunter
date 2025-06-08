@@ -15,6 +15,7 @@ from detect_hidden_sites import (
     interpolate_bare_earth,
     residual_relief,
     detect_anomalies,
+    krige_bare_earth
 )
 from cop_dem_tools import (
     fetch_cop_tiles,
@@ -104,10 +105,18 @@ def step_bare_earth(cfg: Dict[str, Any], bbox: Tuple[float, float, float, float]
     if not cfg.get("enabled", True) or gedi is None:
         return None
     console.rule("[bold green]Bare-earth surface")
-    xi, yi, zi = interpolate_bare_earth(
+    # xi, yi, zi = interpolate_bare_earth(
+    #     gedi,
+    #     bbox,
+    #     cfg.get("resolution", 0.0002695),
+    # )
+    xi, yi, zi = krige_bare_earth(
         gedi,
         bbox,
-        cfg.get("resolution", 0.0002695),
+        res=0.0002695,          # 15 m grid, or keep 30 m if you like
+        variogram_model="spherical",  # or "spherical", "gaussian"
+        nlags=30,
+        detrend=True             # often improves short-range detail
     )
     if cfg.get("visualize", True):
         save_surface_png(

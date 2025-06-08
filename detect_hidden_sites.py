@@ -35,6 +35,7 @@ from scipy.spatial import cKDTree
 from rasterio import windows
 from rasterio.windows import from_bounds
 from rasterio.transform import from_origin
+from pykrige.ok import OrdinaryKriging
 
 console = Console()
 
@@ -273,8 +274,8 @@ def interpolate_bare_earth(
         gdf,
         bbox: tuple[float, float, float, float],
         res: float = 0.2695,
-        power: float = .1,
-        k: int = 256,
+        power: float = 2,
+        k: int = 64,
         nodata: float = np.nan,
 ):
     """
@@ -330,6 +331,71 @@ def interpolate_bare_earth(
     zi = zi_flat.reshape(xi_m.shape)
     return xi_m, yi_m, zi
 
+def krige_bare_earth(
+        gdf,
+        bbox: tuple[float, float, float, float],
+        res: float = 0.0002695,
+        variogram_model: str = "gaussian",
+        nlags: int = 20,
+        detrend: bool = False,
+        nodata: float = np.nan,
+):
+    """
+    Ordinary kriging of GEDI 'elev_lowestmode' using PyKrige.
+
+    Returns
+    -------
+    xi_m, yi_m, zi : 2-D lon grid, lat grid, kriged surface (same as IDW version)
+    """
+    xmin, ymin, xmax, ymax = bbox
+    nx = int(round((xmax - xmin) / res))
+    ny = int(round((ymax - ymin) / res))
+
+    # 1-D centre coordinates
+    xi = xmin + res * (np.arange(nx, dtype=np.float32) + 0.5)
+    yi = ymin + res * (np.arange(ny, dtype=np.float32) + 0.5)
+    xi_m, yi_m = np.meshgrid(xi, yi, indexing="xy")
+
+    # Prepare input points ----------------------------------------------------
+    x = gdf.geometry.x.values
+    y = gdf.geometry.y.values
+    z = gdf["elev_lowestmode"].values
+
+    # Optional linear detrend (removes regional slope, improves variogram fit)
+    if detrend:
+        A = np.vstack((x, y, np.ones_like(x))).T
+        coef, *_ = np.linalg.lstsq(A, z, rcond=None)
+        trend = A @ coef
+        z_resid = z - trend
+    else:
+        z_resid = z
+
+    # Build the kriger --------------------------------------------------------
+    ok = OrdinaryKriging(
+        x, y, z_resid,
+        variogram_model=variogram_model,
+        nlags=nlags,
+        enable_statistics=False,   # turn on if you want the variance later
+        pseudo_inv=True
+    )
+
+    # Interpolate on the grid -------------------------------------------------
+    zi_resid, _ = ok.execute("grid", xi, yi, backend='C', n_closest_points=64)  # 2-D arrays
+
+    # Add trend back if we removed it
+    if detrend:
+        # Need the trend at every grid node
+        Xg = xi_m.ravel()
+        Yg = yi_m.ravel()
+        trend_grid = (np.vstack((Xg, Yg, np.ones_like(Xg))).T @ coef).reshape(zi_resid.shape)
+        zi = zi_resid + trend_grid
+    else:
+        zi = zi_resid
+
+    # Replace masked values with nodata so the rest of your pipeline copes
+    zi = np.where(np.ma.getmaskarray(zi), nodata, zi.astype(np.float32))
+
+    return xi_m, yi_m, zi
 
 
 # def residual_relief(bearth, dem_path: Path):
