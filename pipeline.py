@@ -174,7 +174,11 @@ def step_detect_anomalies(cfg: Dict[str, Any], rrm, xi, yi, base: Path):
 
 def _write_obj_mesh(xi: np.ndarray, yi: np.ndarray, zi: np.ndarray, path: Path,
                     *, cmap: str = "terrain") -> None:
-    """Write a regular grid surface to ``path`` as an OBJ mesh with colors."""
+    """Write a regular grid surface to ``path`` as an OBJ mesh with colors.
+
+    Coordinates are converted from lon/lat degrees to metres and centred so the
+    object imports nicely into Blender.
+    """
 
     arr = zi.astype(float)
     arr[arr == -9999] = np.nan
@@ -188,17 +192,26 @@ def _write_obj_mesh(xi: np.ndarray, yi: np.ndarray, zi: np.ndarray, path: Path,
     nrows, ncols = arr.shape
     xi = np.asarray(xi).reshape(nrows, ncols)
     yi = np.asarray(yi).reshape(nrows, ncols)
+
+    # lon/lat degrees -> metres (approximate)
+    lat0 = float(np.nanmean(yi))
+    lon_scale = 111_320 * np.cos(np.radians(lat0))
+    lat_scale = 111_320
+    x = (xi - np.nanmean(xi)) * lon_scale
+    y = (yi - np.nanmean(yi)) * lat_scale
+    z = arr - np.nanmean(arr)
+
     idx_map = np.full((nrows, ncols), -1, dtype=int)
     verts: list[str] = []
     faces: list[str] = []
     idx = 1
     for i in range(nrows):
         for j in range(ncols):
-            z = zi[i, j]
-            if not np.isfinite(z):
+            zv = z[i, j]
+            if not np.isfinite(zv):
                 continue
             r, g, b = colors[i, j]
-            verts.append(f"v {xi[i, j]:.6f} {yi[i, j]:.6f} {z:.3f} {r:.3f} {g:.3f} {b:.3f}")
+            verts.append(f"v {x[i, j]:.3f} {y[i, j]:.3f} {zv:.3f} {r:.3f} {g:.3f} {b:.3f}")
             idx_map[i, j] = idx
             idx += 1
 
@@ -218,15 +231,22 @@ def _write_obj_mesh(xi: np.ndarray, yi: np.ndarray, zi: np.ndarray, path: Path,
 
 
 def _save_xyz_points(xi: np.ndarray, yi: np.ndarray, zi: np.ndarray, path: Path) -> None:
-    """Save grid points as an XYZ text file."""
+    """Save grid points as an XYZ text file in metres, centred around 0."""
 
     nrows, ncols = zi.shape
     xi = np.asarray(xi).reshape(nrows, ncols)
     yi = np.asarray(yi).reshape(nrows, ncols)
 
-    arr = np.stack([xi.ravel(), yi.ravel(), zi.astype(float).ravel()], axis=1)
+    lat0 = float(np.nanmean(yi))
+    lon_scale = 111_320 * np.cos(np.radians(lat0))
+    lat_scale = 111_320
+    x = (xi - np.nanmean(xi)) * lon_scale
+    y = (yi - np.nanmean(yi)) * lat_scale
+    z = zi.astype(float) - np.nanmean(zi)
+
+    arr = np.stack([x.ravel(), y.ravel(), z.ravel()], axis=1)
     mask = np.isfinite(arr[:, 2])
-    np.savetxt(path, arr[mask], fmt="%.6f %.6f %.3f")
+    np.savetxt(path, arr[mask], fmt="%.3f %.3f %.3f")
 
 
 def step_export_obj(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
