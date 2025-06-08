@@ -26,6 +26,9 @@ from cop_dem_tools import (
     save_residual_png,
     save_anomaly_points_png,
 )
+import numpy as np
+import rasterio as rio
+import matplotlib.pyplot as plt
 
 # Reuse visualization helpers
 from preview_pipeline import (
@@ -169,6 +172,77 @@ def step_detect_anomalies(cfg: Dict[str, Any], rrm, xi, yi, base: Path):
     return anomalies
 
 
+def _write_obj_mesh(xi: np.ndarray, yi: np.ndarray, zi: np.ndarray, path: Path,
+                    *, cmap: str = "terrain") -> None:
+    """Write a regular grid surface to ``path`` as an OBJ mesh with colors."""
+
+    arr = zi.astype(float)
+    arr[arr == -9999] = np.nan
+
+    vmin, vmax = np.nanmin(arr), np.nanmax(arr)
+    norm = (arr - vmin) / max(vmax - vmin, 1)
+
+    cm = plt.get_cmap(cmap)
+    colors = (cm(norm)[..., :3]).astype(float)
+
+    nrows, ncols = zi.shape
+    idx_map = np.full((nrows, ncols), -1, dtype=int)
+    verts: list[str] = []
+    faces: list[str] = []
+    idx = 1
+    for i in range(nrows):
+        for j in range(ncols):
+            z = zi[i, j]
+            if not np.isfinite(z):
+                continue
+            r, g, b = colors[i, j]
+            verts.append(f"v {xi[i, j]:.6f} {yi[i, j]:.6f} {z:.3f} {r:.3f} {g:.3f} {b:.3f}")
+            idx_map[i, j] = idx
+            idx += 1
+
+    for i in range(nrows - 1):
+        for j in range(ncols - 1):
+            v1 = idx_map[i, j]
+            v2 = idx_map[i, j + 1]
+            v3 = idx_map[i + 1, j + 1]
+            v4 = idx_map[i + 1, j]
+            if v1 > 0 and v2 > 0 and v3 > 0:
+                faces.append(f"f {v1} {v2} {v3}")
+            if v1 > 0 and v3 > 0 and v4 > 0:
+                faces.append(f"f {v1} {v3} {v4}")
+
+    with open(path, "w") as f:
+        f.write("\n".join(verts + faces))
+
+
+def step_export_obj(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
+    """Export bare-earth and DEM surfaces as OBJ meshes with vertex colors."""
+
+    if not cfg.get("enabled", True) or bearth is None or dem_path is None:
+        return
+
+    console.rule("[bold green]Export surfaces as OBJ")
+    cmap = cfg.get("cmap", "terrain")
+
+    xi, yi, zi = bearth
+    out_be = base / cfg.get("bare_earth_file", "bare_earth.obj")
+    _write_obj_mesh(xi, yi, zi, out_be, cmap=cmap)
+    console.log(f"[cyan]Wrote {out_be}")
+
+    with rio.open(dem_path) as src:
+        arr = src.read(1)
+        rows, cols = np.meshgrid(
+            np.arange(src.height), np.arange(src.width), indexing="ij"
+        )
+        lon, lat = rio.transform.xy(src.transform, rows, cols, offset="center")
+        lon = np.array(lon)
+        lat = np.array(lat)
+
+    out_dem = base / cfg.get("dem_file", "dem_crop.obj")
+    _write_obj_mesh(lon, lat, arr, out_dem, cmap=cmap)
+    console.log(f"[cyan]Wrote {out_dem}")
+
+
 def step_interactive_map(cfg: Dict[str, Any], points, anomalies, bbox, base: Path):
     if not cfg.get("enabled", True):
         return
@@ -220,6 +294,9 @@ def run_pipeline(config: Dict[str, Any]):
 
     # Step 5 – interactive map
     step_interactive_map(config.get("step5", {}), points, anomalies, bbox, base)
+
+    # Step 6 – export surfaces for Blender
+    step_export_obj(config.get("step6", {}), bearth, dem_path, base)
 
 
 if __name__ == "__main__":
