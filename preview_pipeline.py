@@ -517,18 +517,18 @@ def visualize_gedi_points(points, bbox, outdir):
             [ymin, ymin, ymax, ymax, ymin], 
             'r-', linewidth=2, label='Area of Interest')
     
-    ax.set_title('GEDI Ground Points')
-    ax.set_xlabel('Longitude')
-    ax.set_ylabel('Latitude')
-    ax.legend()
+    # ax.set_title('GEDI Ground Points')
+    # ax.set_xlabel('Longitude')
+    # ax.set_ylabel('Latitude')
+    # ax.legend()
 
-    ax.set_xlim(xmin, xmax)
-    ax.set_ylim(ymin, ymax)
+    # ax.set_xlim(xmin, xmax)
+    # ax.set_ylim(ymin, ymax)
 
-    out_path = Path(outdir) / "2_gedi_points.png"
-    plt.savefig(out_path, dpi=300, bbox_inches='tight')
-    plt.close(fig)
-    print(f"Saved GEDI points visualization to {out_path}")
+    # out_path = Path(outdir) / "2_gedi_points.png"
+    # plt.savefig(out_path, dpi=300, bbox_inches='tight')
+    # plt.close(fig)
+    # print(f"Saved GEDI points visualization to {out_path}")
 
     # ----- clean version for map overlays -----
     fig2, ax2 = plt.subplots(figsize=(8, 8))
@@ -540,7 +540,6 @@ def visualize_gedi_points(points, bbox, outdir):
     out_path_clean = Path(outdir) / "2_gedi_points_clean.png"
     plt.savefig(out_path_clean, dpi=300, bbox_inches='tight', pad_inches=0)
     plt.close(fig2)
-    print(f"Saved GEDI overlay to {out_path_clean}")
     return True
 
 def visualize_bare_earth(points, bbox, resolution, outdir):
@@ -797,7 +796,10 @@ def create_interactive_map(points, anomalies, bbox, outdir, include_data_vis=Fal
     outdir = Path(outdir)
     # Use only the clean images for overlays and include the DEM hillshade
     image_files = []
-    hillshade = list(outdir.glob("copernicus_dem_hillshade*.png"))
+    mosaic_png = list(outdir.glob("1_copernicus_dem_mosaic_hillshade*.png"))
+    if mosaic_png:
+        image_files.append(str(mosaic_png[0].resolve()))
+    hillshade = list(outdir.glob("1_copernicus_dem_crop_hillshade*.png"))
     if hillshade:
         image_files.append(str(hillshade[0].resolve()))
     image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("*_clean.png")))
@@ -815,6 +817,18 @@ def create_interactive_map(points, anomalies, bbox, outdir, include_data_vis=Fal
         lidar_df = ref_lidar
         image_files.extend(ref_images)
 
+    # Determine custom bounds for the DEM mosaic if present
+    image_bounds = {}
+    if mosaic_png:
+        mosaic_tif = outdir / "cop90_mosaic.tif"
+        if mosaic_tif.exists():
+            with rio.open(mosaic_tif) as src:
+                b = src.bounds
+                image_bounds[str(Path(mosaic_png[0]).resolve())] = [
+                    [b.bottom, b.left],
+                    [b.top, b.right],
+                ]
+
     map_obj = create_combined_map(
         arch_dataframes,
         lidar_df,
@@ -822,6 +836,7 @@ def create_interactive_map(points, anomalies, bbox, outdir, include_data_vis=Fal
         points=points,
         anomalies=anomalies,
         bbox=bbox,
+        image_bounds=image_bounds,
     )
 
     output_path = outdir / "interactive_map.html"

@@ -11,20 +11,25 @@ from rich.console import Console
 
 # Reuse core functions from existing scripts
 from detect_hidden_sites import (
-    fetch_cop_tiles,
     fetch_gedi_points,
     interpolate_bare_earth,
     residual_relief,
     detect_anomalies,
+    krige_bare_earth
+)
+from cop_dem_tools import (
+    fetch_cop_tiles,
+    mosaic_cop_tiles,
+    crop_to_bbox,
+    save_dem_png,
+    save_surface_png,
+    save_residual_png,
+    save_anomaly_points_png,
 )
 
 # Reuse visualization helpers
 from preview_pipeline import (
-    visualize_copernicus_dem,
     visualize_gedi_points,
-    visualize_bare_earth,
-    visualize_residual_relief,
-    visualize_anomalies,
     create_interactive_map,
 )
 
@@ -68,12 +73,13 @@ def step_fetch_data(
 
     if cfg.get("fetch_cop_tiles", {}).get("enabled", True):
         console.rule("[bold green]Fetch Copernicus DEM")
-        dem_path = fetch_cop_tiles(tuple(bbox), base)
-        if cfg.get("visualize", True) and dem_path:
-            # Save the full map image
-            visualize_copernicus_dem(dem_path, bbox, base)
-            # Save a clean hillshade version for the interactive map overlay
-            visualize_copernicus_dem(dem_path, bbox, base, bare=True)
+        tiles = fetch_cop_tiles(tuple(bbox), base)
+        mosaic = mosaic_cop_tiles(tiles, base / "cop90_mosaic.tif", bbox)
+        crop = crop_to_bbox(mosaic, bbox, base / "cop90_crop.tif")
+        dem_path = crop
+        if cfg.get("visualize", True):
+            save_dem_png(mosaic, base / "1_copernicus_dem_mosaic_hillshade.png")
+            save_dem_png(crop, base / "1_copernicus_dem_crop_hillshade.png")
 
     if cfg.get("fetch_gedi_points", {}).get("enabled", True):
         console.rule("[bold green]Fetch GEDI footprints")
@@ -90,6 +96,7 @@ def step_fetch_data(
                 for geom, elev in zip(gedi.geometry, gedi["elev_lowestmode"])
             ]
             visualize_gedi_points(points, bbox, base)
+            console.log(f"[cyan]Wrote {Path(base) / "2_gedi_points_clean.png"}")
 
     return dem_path, gedi
 
@@ -98,17 +105,26 @@ def step_bare_earth(cfg: Dict[str, Any], bbox: Tuple[float, float, float, float]
     if not cfg.get("enabled", True) or gedi is None:
         return None
     console.rule("[bold green]Bare-earth surface")
-    xi, yi, zi = interpolate_bare_earth(
+    # xi, yi, zi = interpolate_bare_earth(
+    #     gedi,
+    #     bbox,
+    #     cfg.get("resolution", 0.0002695),
+    # )
+    xi, yi, zi = krige_bare_earth(
         gedi,
         bbox,
-        cfg.get("resolution", 0.0002695),
+        res=0.0002695,          # 15 m grid, or keep 30 m if you like
+        variogram_model="spherical",  # or "spherical", "gaussian"
+        nlags=30,
+        detrend=True             # often improves short-range detail
     )
     if cfg.get("visualize", True):
-        points = [
-            (geom.y, geom.x, elev)
-            for geom, elev in zip(gedi.geometry, gedi["elev_lowestmode"])
-        ]
-        visualize_bare_earth(points, bbox, cfg.get("resolution", 0.0002695), base)
+        save_surface_png(
+            xi,
+            yi,
+            zi,
+            base / "3_bare_earth_surface_clean.png",
+        )
     return xi, yi, zi
 
 
@@ -119,7 +135,10 @@ def step_residual_relief(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path
     xi, yi, zi = bearth
     rrm = residual_relief((xi, yi, zi), dem_path)
     if cfg.get("visualize", True):
-        visualize_residual_relief(xi, yi, zi, dem_path, base)
+        save_residual_png(
+            rrm,
+            base / "4_residual_relief_clean.png",
+        )
     return rrm
 
 
@@ -137,7 +156,12 @@ def step_detect_anomalies(cfg: Dict[str, Any], rrm, xi, yi, base: Path):
         debug_dir=(base / "debug") if cfg.get("debug", False) else None,
     )
     if cfg.get("visualize", True):
-        visualize_anomalies(anomalies, rrm, xi, yi, cfg.get("sigma", 2), None, base)
+        save_anomaly_points_png(
+            anomalies,
+            xi,
+            yi,
+            base / "5_detected_anomalies_clean.png",
+        )
     if cfg.get("save_json", True):
         out = base / "anomalies.geojson"
         anomalies.to_file(out, driver="GeoJSON")
@@ -188,11 +212,11 @@ def run_pipeline(config: Dict[str, Any]):
 
     # Prepare points for interactive map
     points = None
-    if gedi is not None:
-        points = [
-            (geom.y, geom.x, elev)
-            for geom, elev in zip(gedi.geometry, gedi["elev_lowestmode"])
-        ]
+    # if gedi is not None:
+    #     points = [
+    #         (geom.y, geom.x, elev)
+    #         for geom, elev in zip(gedi.geometry, gedi["elev_lowestmode"])
+    #     ]
 
     # Step 5 – interactive map
     step_interactive_map(config.get("step5", {}), points, anomalies, bbox, base)

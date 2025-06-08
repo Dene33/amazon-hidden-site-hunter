@@ -30,6 +30,7 @@ dependencies = [
     "matplotlib",
     "geopandas",
     "contextily",
+    "pykrige>=1.7.2",
 ]
 
 [project.scripts]

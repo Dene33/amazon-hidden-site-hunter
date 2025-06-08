@@ -374,15 +374,15 @@ def load_reference_datasets(base_dir: str = BASE_DIR):
     except Exception as e:  # noqa: BLE001
         print(f"  - Submit data file not found or cannot be read: {e}")
 
-    # 5. Science data
-    try:
-        science_df = read_science_data(
-            os.path.join(base_dir, "data_vis/science_data/science.ade2541_data_s2.csv")
-        )
-        if not science_df.empty:
-            arch_dataframes.append(("Science Data", science_df))
-    except Exception as e:  # noqa: BLE001
-        print(f"  - Science data file not found or cannot be read: {e}")
+    # # 5. Science data
+    # try:
+    #     science_df = read_science_data(
+    #         os.path.join(base_dir, "data_vis/science_data/science.ade2541_data_s2.csv")
+    #     )
+    #     if not science_df.empty:
+    #         arch_dataframes.append(("Science Data", science_df))
+    # except Exception as e:  # noqa: BLE001
+    #     print(f"  - Science data file not found or cannot be read: {e}")
 
     # 6. LiDAR inventory
     try:
@@ -423,10 +423,31 @@ def create_combined_map(
     points=None,
     anomalies=None,
     bbox=None,
+    image_bounds=None,
 ):
+    """Create a Folium map with overlays and optional custom bounds.
+
+    Parameters
+    ----------
+    arch_dataframes : list, optional
+        Archaeological datasets to display.
+    lidar_df : DataFrame, optional
+        LiDAR coverage polygons.
+    image_files : list, optional
+        List of image overlay paths.
+    points : list, optional
+        GEDI or other point data.
+    anomalies : GeoDataFrame, optional
+        Detected anomalies to plot.
+    bbox : tuple, optional
+        (xmin, ymin, xmax, ymax) bounding box for most overlays.
+    image_bounds : dict, optional
+        Mapping of image path to ``[[south, west], [north, east]]`` bounds.
+    """
     arch_dataframes = arch_dataframes or []
     lidar_df = lidar_df if lidar_df is not None else pd.DataFrame()
     image_files = image_files or []
+    image_bounds = image_bounds or {}
 
     # Determine center from bbox if provided
     center = MAP_CENTER
@@ -552,7 +573,7 @@ def create_combined_map(
         
         # Create the image overlay
         bounds = OVERLAY_BOUNDS
-
+        
         base_vis = os.path.join(BASE_DIR, "data_vis")
         is_data_vis = os.path.commonpath([img_path, base_vis]) == base_vis
 
@@ -562,24 +583,24 @@ def create_combined_map(
 
         is_mercator_file = img_name_simple.endswith("_3857")
 
-        if bbox and not is_data_vis:
+        if str(img_path) in image_bounds:
+            bounds = image_bounds[str(img_path)]
+        elif bbox and not is_data_vis:
             xmin, ymin, xmax, ymax = bbox
-            # if is_mercator_file:
-            #     t = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
-            #     xmin, ymin = t.transform(xmin, ymin)
-            #     xmax, ymax = t.transform(xmax, ymax)
             bounds = [[ymin, xmin], [ymax, xmax]]
 
         # Decide whether Leaflet should project the image
-        if is_mercator_file:
-            use_mercator = False
-            img_input = f"file://{img_path}"
-        else:
-            use_mercator = not is_data_vis
-            if use_mercator:
-                img_input = np.asarray(Image.open(img_path))
-            else:
-                img_input = f"file://{img_path}"
+        # if is_mercator_file:
+        #     use_mercator = False
+        #     img_input = f"file://{img_path}"
+        # else:
+        #     use_mercator = not is_data_vis
+        #     if use_mercator:
+        #         img_input = np.asarray(Image.open(img_path))
+        #     else:
+        #         img_input = f"file://{img_path}"
+        use_mercator = True
+        img_input = np.asarray(Image.open(img_path))
         
         # Create a unique ID for this image's control
         img_id = f"img_{img_name_simple.replace(' ', '_').replace('.', '_')}"
