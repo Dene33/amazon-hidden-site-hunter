@@ -185,7 +185,9 @@ def _write_obj_mesh(xi: np.ndarray, yi: np.ndarray, zi: np.ndarray, path: Path,
     cm = plt.get_cmap(cmap)
     colors = (cm(norm)[..., :3]).astype(float)
 
-    nrows, ncols = zi.shape
+    nrows, ncols = arr.shape
+    xi = np.asarray(xi).reshape(nrows, ncols)
+    yi = np.asarray(yi).reshape(nrows, ncols)
     idx_map = np.full((nrows, ncols), -1, dtype=int)
     verts: list[str] = []
     faces: list[str] = []
@@ -215,6 +217,18 @@ def _write_obj_mesh(xi: np.ndarray, yi: np.ndarray, zi: np.ndarray, path: Path,
         f.write("\n".join(verts + faces))
 
 
+def _save_xyz_points(xi: np.ndarray, yi: np.ndarray, zi: np.ndarray, path: Path) -> None:
+    """Save grid points as an XYZ text file."""
+
+    nrows, ncols = zi.shape
+    xi = np.asarray(xi).reshape(nrows, ncols)
+    yi = np.asarray(yi).reshape(nrows, ncols)
+
+    arr = np.stack([xi.ravel(), yi.ravel(), zi.astype(float).ravel()], axis=1)
+    mask = np.isfinite(arr[:, 2])
+    np.savetxt(path, arr[mask], fmt="%.6f %.6f %.3f")
+
+
 def step_export_obj(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
     """Export bare-earth and DEM surfaces as OBJ meshes with vertex colors."""
 
@@ -235,11 +249,38 @@ def step_export_obj(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
             np.arange(src.height), np.arange(src.width), indexing="ij"
         )
         lon, lat = rio.transform.xy(src.transform, rows, cols, offset="center")
-        lon = np.array(lon)
-        lat = np.array(lat)
+        lon = np.array(lon).reshape(arr.shape)
+        lat = np.array(lat).reshape(arr.shape)
 
     out_dem = base / cfg.get("dem_file", "dem_crop.obj")
     _write_obj_mesh(lon, lat, arr, out_dem, cmap=cmap)
+    console.log(f"[cyan]Wrote {out_dem}")
+
+
+def step_export_xyz(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
+    """Export bare-earth and DEM surfaces as XYZ point clouds."""
+
+    if not cfg.get("enabled", True) or bearth is None or dem_path is None:
+        return
+
+    console.rule("[bold green]Export surfaces as XYZ")
+
+    xi, yi, zi = bearth
+    out_be = base / cfg.get("bare_earth_file", "bare_earth.xyz")
+    _save_xyz_points(xi, yi, zi, out_be)
+    console.log(f"[cyan]Wrote {out_be}")
+
+    with rio.open(dem_path) as src:
+        arr = src.read(1)
+        rows, cols = np.meshgrid(
+            np.arange(src.height), np.arange(src.width), indexing="ij"
+        )
+        lon, lat = rio.transform.xy(src.transform, rows, cols, offset="center")
+        lon = np.array(lon).reshape(arr.shape)
+        lat = np.array(lat).reshape(arr.shape)
+
+    out_dem = base / cfg.get("dem_file", "dem_crop.xyz")
+    _save_xyz_points(lon, lat, arr, out_dem)
     console.log(f"[cyan]Wrote {out_dem}")
 
 
@@ -297,6 +338,9 @@ def run_pipeline(config: Dict[str, Any]):
 
     # Step 6 – export surfaces for Blender
     step_export_obj(config.get("step6", {}), bearth, dem_path, base)
+
+    # Step 7 – export XYZ point clouds
+    step_export_xyz(config.get("step7", {}), bearth, dem_path, base)
 
 
 if __name__ == "__main__":

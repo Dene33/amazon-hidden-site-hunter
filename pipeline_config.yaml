@@ -39,3 +39,8 @@ step6:
   enabled: true
   bare_earth_file: bare_earth.obj
   dem_file: dem_crop.obj
+
+step7:
+  enabled: true
+  bare_earth_file: bare_earth.xyz
+  dem_file: dem_crop.xyz
