@@ -33,6 +33,7 @@ import matplotlib.pyplot as plt
 import earthaccess, h5py
 from scipy.spatial import cKDTree
 from rasterio import windows
+from rasterio.windows import from_bounds
 from rasterio.transform import from_origin
 
 console = Console()
@@ -293,10 +294,12 @@ def interpolate_bare_earth(
     xi_m, yi_m, zi : 2-D lon grid, lat grid, interpolated surface
     """
     xmin, ymin, xmax, ymax = bbox
-    nx = int(round((xmax - xmin) / res)) + 1
-    ny = int(round((ymax - ymin) / res)) + 1
-    xi = np.linspace(xmin, xmax, nx, dtype=np.float32)
-    yi = np.linspace(ymin, ymax, ny, dtype=np.float32)
+    nx = int(round((xmax - xmin) / res))
+    ny = int(round((ymax - ymin) / res))
+
+    xi = xmin + res * (np.arange(nx, dtype=np.float32) + 0.5)
+    yi = ymin + res * (np.arange(ny, dtype=np.float32) + 0.5)
+
     xi_m, yi_m = np.meshgrid(xi, yi, indexing="xy")
 
     # Prepare point cloud
@@ -342,6 +345,23 @@ def interpolate_bare_earth(
 #                   resampling=Resampling.bilinear)
 #     return zi - dest
 
+def _grid_transform(xi: np.ndarray, yi: np.ndarray) -> rio.Affine:
+    """Transform whose pixel centres coincide with (xi, yi)."""
+    # constant step size – already computed once above
+    res_x = xi[0, 1] - xi[0, 0]
+    res_y = yi[1, 0] - yi[0, 0]
+
+    # pixel *edges* → add/subtract half a pixel
+    west   = xi.min() - res_x / 2
+    east   = xi.max() + res_x / 2
+    south  = yi.min() - res_y / 2
+    north  = yi.max() + res_y / 2
+
+    # width = cols, height = rows
+    return rio.transform.from_bounds(west, south, east, north,
+                       width = xi.shape[1],
+                       height = yi.shape[0])
+
 def residual_relief(bearth, dem_path: Path):
     """
     Subtract Copernicus DEM from the GEDI bare-earth surface, guaranteeing that
@@ -353,12 +373,8 @@ def residual_relief(bearth, dem_path: Path):
 
     # destination grid that matches (xi, yi)
     # Align DEM pixels with the bare-earth grid so that their centres match
-    dst_transform = from_origin(
-        xi[0, 0],                # xmin
-        yi.max() + res_y,        # ymax (upper edge)
-        res_x,                   # pixel width
-        res_y                    # pixel height
-    )
+    dst_transform = _grid_transform(xi, yi)
+
 
     with rio.open(dem_path) as src:
         nodata_val = src.nodata or -9999

@@ -14,6 +14,7 @@ from shapely.geometry import box, mapping
 from rich.console import Console
 from PIL import Image, ImageDraw
 import matplotlib.pyplot as plt
+from rasterio.windows import from_bounds, transform as window_transform
 
 console = Console()
 
@@ -92,7 +93,10 @@ def crop_to_bbox(mosaic_path: Path, bbox: Tuple[float, float, float, float], out
 
     geom = [mapping(box(*bbox))]
     with rio.open(mosaic_path) as src:
-        out_img, out_transform = mask(src, geom, crop=True)
+        window = from_bounds(*bbox, transform=src.transform)
+        out_img = src.read(window=window)
+        out_transform = window_transform(window, src.transform)
+        # out_img, out_transform = mask(src, geom, crop=True)
         out_meta = src.meta.copy()
         out_meta.update(
             height=out_img.shape[1],
@@ -158,6 +162,9 @@ def save_surface_png(
     arr = zi.astype(float)
     arr[arr == -9999] = np.nan  # legacy nodata guard
 
+    # ‼️  flip in the y–axis so north ends up at the top
+    arr = np.flipud(arr)
+
     vmin, vmax = np.nanmin(arr), np.nanmax(arr)
     norm = (arr - vmin) / max(vmax - vmin, 1)
 
@@ -186,7 +193,9 @@ def save_residual_png(
     arr = rrm.astype(float)
     arr[arr == -9999] = np.nan
 
-    vmax = np.nanmax(np.abs(arr))
+    # vmin, vmax = np.nanmin(arr), np.nanmax(arr)
+    # norm = (arr - vmin) / max(vmax - vmin, 1)
+    vmax = np.nanmax(arr)
     vmax = vmax if np.isfinite(vmax) and vmax > 0 else 1
     norm = (arr + vmax) / (2 * vmax)
 
