@@ -34,3 +34,15 @@ step4:
 step5:
   enabled: true
   include_data_vis: true
+
+step6:
+  enabled: true
+  bare_earth_file: bare_earth.obj
+  dem_file: dem_crop.obj
+  scale: 0.01
+
+step7:
+  enabled: true
+  bare_earth_file: bare_earth.xyz
+  dem_file: dem_crop.xyz
+  scale: 0.01
