@@ -172,8 +172,15 @@ def step_detect_anomalies(cfg: Dict[str, Any], rrm, xi, yi, base: Path):
     return anomalies
 
 
-def _write_obj_mesh(xi: np.ndarray, yi: np.ndarray, zi: np.ndarray, path: Path,
-                    *, cmap: str = "terrain") -> None:
+def _write_obj_mesh(
+    xi: np.ndarray,
+    yi: np.ndarray,
+    zi: np.ndarray,
+    path: Path,
+    *,
+    cmap: str = "terrain",
+    scale: float = 1.0,
+) -> None:
     """Write a regular grid surface to ``path`` as an OBJ mesh with colors.
 
     Coordinates are converted from lon/lat degrees to metres and centred so the
@@ -197,9 +204,9 @@ def _write_obj_mesh(xi: np.ndarray, yi: np.ndarray, zi: np.ndarray, path: Path,
     lat0 = float(np.nanmean(yi))
     lon_scale = 111_320 * np.cos(np.radians(lat0))
     lat_scale = 111_320
-    x = (xi - np.nanmean(xi)) * lon_scale
-    y = (yi - np.nanmean(yi)) * lat_scale
-    z = arr - np.nanmean(arr)
+    x = (xi - np.nanmean(xi)) * lon_scale * scale
+    y = (yi - np.nanmean(yi)) * lat_scale * scale
+    z = (arr - np.nanmean(arr)) * scale
 
     idx_map = np.full((nrows, ncols), -1, dtype=int)
     verts: list[str] = []
@@ -211,7 +218,10 @@ def _write_obj_mesh(xi: np.ndarray, yi: np.ndarray, zi: np.ndarray, path: Path,
             if not np.isfinite(zv):
                 continue
             r, g, b = colors[i, j]
-            verts.append(f"v {x[i, j]:.3f} {y[i, j]:.3f} {zv:.3f} {r:.3f} {g:.3f} {b:.3f}")
+            # OBJ format uses Y-up. Store height in Y so Blender imports with Z-up
+            verts.append(
+                f"v {x[i, j]:.3f} {zv:.3f} {-y[i, j]:.3f} {r:.3f} {g:.3f} {b:.3f}"
+            )
             idx_map[i, j] = idx
             idx += 1
 
@@ -230,7 +240,14 @@ def _write_obj_mesh(xi: np.ndarray, yi: np.ndarray, zi: np.ndarray, path: Path,
         f.write("\n".join(verts + faces))
 
 
-def _save_xyz_points(xi: np.ndarray, yi: np.ndarray, zi: np.ndarray, path: Path) -> None:
+def _save_xyz_points(
+    xi: np.ndarray,
+    yi: np.ndarray,
+    zi: np.ndarray,
+    path: Path,
+    *,
+    scale: float = 1.0,
+) -> None:
     """Save grid points as an XYZ text file in metres, centred around 0."""
 
     nrows, ncols = zi.shape
@@ -240,9 +257,9 @@ def _save_xyz_points(xi: np.ndarray, yi: np.ndarray, zi: np.ndarray, path: Path)
     lat0 = float(np.nanmean(yi))
     lon_scale = 111_320 * np.cos(np.radians(lat0))
     lat_scale = 111_320
-    x = (xi - np.nanmean(xi)) * lon_scale
-    y = (yi - np.nanmean(yi)) * lat_scale
-    z = zi.astype(float) - np.nanmean(zi)
+    x = (xi - np.nanmean(xi)) * lon_scale * scale
+    y = (yi - np.nanmean(yi)) * lat_scale * scale
+    z = (zi.astype(float) - np.nanmean(zi)) * scale
 
     arr = np.stack([x.ravel(), y.ravel(), z.ravel()], axis=1)
     mask = np.isfinite(arr[:, 2])
@@ -257,10 +274,11 @@ def step_export_obj(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
 
     console.rule("[bold green]Export surfaces as OBJ")
     cmap = cfg.get("cmap", "terrain")
+    scale = cfg.get("scale", 1.0)
 
     xi, yi, zi = bearth
     out_be = base / cfg.get("bare_earth_file", "bare_earth.obj")
-    _write_obj_mesh(xi, yi, zi, out_be, cmap=cmap)
+    _write_obj_mesh(xi, yi, zi, out_be, cmap=cmap, scale=scale)
     console.log(f"[cyan]Wrote {out_be}")
 
     with rio.open(dem_path) as src:
@@ -273,7 +291,7 @@ def step_export_obj(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
         lat = np.array(lat).reshape(arr.shape)
 
     out_dem = base / cfg.get("dem_file", "dem_crop.obj")
-    _write_obj_mesh(lon, lat, arr, out_dem, cmap=cmap)
+    _write_obj_mesh(lon, lat, arr, out_dem, cmap=cmap, scale=scale)
     console.log(f"[cyan]Wrote {out_dem}")
 
 
@@ -284,10 +302,11 @@ def step_export_xyz(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
         return
 
     console.rule("[bold green]Export surfaces as XYZ")
+    scale = cfg.get("scale", 1.0)
 
     xi, yi, zi = bearth
     out_be = base / cfg.get("bare_earth_file", "bare_earth.xyz")
-    _save_xyz_points(xi, yi, zi, out_be)
+    _save_xyz_points(xi, yi, zi, out_be, scale=scale)
     console.log(f"[cyan]Wrote {out_be}")
 
     with rio.open(dem_path) as src:
@@ -300,7 +319,7 @@ def step_export_xyz(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
         lat = np.array(lat).reshape(arr.shape)
 
     out_dem = base / cfg.get("dem_file", "dem_crop.xyz")
-    _save_xyz_points(lon, lat, arr, out_dem)
+    _save_xyz_points(lon, lat, arr, out_dem, scale=scale)
     console.log(f"[cyan]Wrote {out_dem}")
 
 
