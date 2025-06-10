@@ -11,6 +11,13 @@ import matplotlib.pyplot as plt
 SEARCH_URL = "https://earth-search.aws.element84.com/v1/search"
 
 
+def _to_rfc3339(date: str, end: bool = False) -> str:
+    """Convert ``YYYY-MM-DD`` strings to RFC3339 format accepted by Earth Search."""
+    if "T" in date:
+        return date
+    return f"{date}T23:59:59Z" if end else f"{date}T00:00:00Z"
+
+
 def search_sentinel2_item(
     bbox: Tuple[float, float, float, float],
     time_start: str,
@@ -21,12 +28,15 @@ def search_sentinel2_item(
     query = {
         "collections": ["sentinel-2-l2a"],
         "bbox": list(bbox),
-        "datetime": f"{time_start}/{time_end}",
+        "datetime": f"{_to_rfc3339(time_start)}/{_to_rfc3339(time_end, end=True)}",
         "query": {"eo:cloud_cover": {"lt": cloud_cover}},
         "limit": 1,
     }
-    r = requests.post(SEARCH_URL, json=query, timeout=60)
-    r.raise_for_status()
+    try:
+        r = requests.post(SEARCH_URL, json=query, timeout=60)
+        r.raise_for_status()
+    except requests.HTTPError:
+        return None
     features = r.json().get("features", [])
     return features[0] if features else None
 
