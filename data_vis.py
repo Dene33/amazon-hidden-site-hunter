@@ -463,9 +463,9 @@ def create_combined_map(
         folium.Rectangle(
             bounds=[[ymin, xmin], [ymax, xmax]],
             color="red",
-            fill=True,
+            fill=False,
             fill_color="yellow",
-            fill_opacity=0.1,
+            fill_opacity=0,
             tooltip="Area of Interest",
         ).add_to(m)
 
@@ -612,7 +612,7 @@ def create_combined_map(
         image_overlay = folium.raster_layers.ImageOverlay(
             image=img_input,
             bounds=bounds,
-            opacity=0.7,
+            opacity=1,
             name=img_name_simple,
             cross_origin=False,
             zindex=1,
@@ -628,8 +628,8 @@ def create_combined_map(
         <div id="slider_{img_id}"
              style="padding:10px;background:#fff;border-radius:6px;margin:10px;width:240px;box-shadow:0 1px 4px rgba(0,0,0,0.3);">
             <strong style="display:block;margin-bottom:4px;">{img_name_simple}</strong>
-            <input id="opacity_{img_id}" type="range" min="0" max="100" value="70" style="width:100%;">
-            <span id="value_{img_id}">Opacity: 70%</span>
+            <input id="opacity_{img_id}" type="range" min="0" max="100" value="100" style="width:100%;">
+            <span id="value_{img_id}">Opacity: 100%</span>
         </div>
 
         <script>
