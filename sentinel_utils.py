@@ -70,7 +70,9 @@ def download_bands(feature: dict, bands: List[str], out_dir: Path) -> Dict[str, 
     return paths
 
 
-def read_band(path: Path, bbox: Optional[Tuple[float, float, float, float]] = None) -> np.ndarray:
+def read_band(
+    path: Path, bbox: Optional[Tuple[float, float, float, float]] = None
+) -> np.ndarray:
     """Read a band and optionally crop it to a WGS84 ``bbox``."""
     with rio.open(path) as src:
         if bbox is None:
@@ -161,3 +163,37 @@ def save_index_png(
         img.save(path, quality=quality, dpi=(dpi, dpi))
     else:
         plt.imsave(path, arr, cmap=cmap, dpi=dpi)
+
+
+def resize_image(
+    src: Path,
+    dest: Path | None = None,
+    factor: float = 0.5,
+    resample: int = Image.Resampling.BICUBIC,
+) -> Path:
+    """Save a resized copy of ``src``.
+
+    Parameters
+    ----------
+    src : Path
+        Source image path.
+    dest : Path, optional
+        Destination path. If ``None``, ``_web`` is appended to the filename.
+    factor : float, default 0.5
+        Scale factor for width and height.
+    resample : int, default ``Image.Resampling.BICUBIC``
+        Pillow resampling filter.
+
+    Returns
+    -------
+    Path
+        Path to the resized image.
+    """
+
+    dest = dest or src.with_name(src.stem + "_web" + src.suffix)
+    with Image.open(src) as img:
+        w, h = img.size
+        new_size = (max(1, int(w * factor)), max(1, int(h * factor)))
+        resized = img.resize(new_size, resample=resample)
+        resized.save(dest)
+    return dest

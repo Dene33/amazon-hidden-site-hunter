@@ -40,6 +40,7 @@ from sentinel_utils import (
     read_band,
     save_index_png,
     save_true_color,
+    resize_image,
     search_sentinel2_item,
 )
 
@@ -93,11 +94,14 @@ def step_fetch_sentinel(
         b04 = read_band(paths["B04"])
         save_true_color(b02, b03, b04, base / "sentinel_true_color.jpg", dpi=dpi)
         console.log(f"[cyan]Wrote {base / 'sentinel_true_color.jpg'}")
+        resize_image(base / "sentinel_true_color.jpg")
 
         b02_c = read_band(paths["B02"], bbox=bbox)
         b03_c = read_band(paths["B03"], bbox=bbox)
         b04_c = read_band(paths["B04"], bbox=bbox)
-        save_true_color(b02_c, b03_c, b04_c, base / "sentinel_true_color_clean.png", dpi=dpi)
+        save_true_color(
+            b02_c, b03_c, b04_c, base / "sentinel_true_color_clean.png", dpi=dpi
+        )
         console.log(f"[cyan]Wrote {base / 'sentinel_true_color_clean.png'}")
 
     if cfg.get("visualize", True) and {"B04", "B08"}.issubset(paths):
@@ -106,6 +110,7 @@ def step_fetch_sentinel(
         kndvi = compute_kndvi(red, nir)
         save_index_png(kndvi, base / "sentinel_kndvi.jpg", dpi=dpi)
         console.log(f"[cyan]Wrote {base / 'sentinel_kndvi.jpg'}")
+        resize_image(base / "sentinel_kndvi.jpg")
 
         red_c = read_band(paths["B04"], bbox=bbox)
         nir_c = read_band(paths["B08"], bbox=bbox)
@@ -153,7 +158,8 @@ def step_fetch_data(
         )
         if cfg.get("visualize", True) and gedi is not None:
             points: List[Tuple[float, float, float]] = [
-                (geom.y, geom.x, elev) for geom, elev in zip(gedi.geometry, gedi["elev_lowestmode"])
+                (geom.y, geom.x, elev)
+                for geom, elev in zip(gedi.geometry, gedi["elev_lowestmode"])
             ]
             visualize_gedi_points(points, bbox, base)
             console.log(f"[cyan]Wrote {Path(base) / "2_gedi_points_clean.png"}")
@@ -161,7 +167,9 @@ def step_fetch_data(
     return dem_path, gedi
 
 
-def step_bare_earth(cfg: Dict[str, Any], bbox: Tuple[float, float, float, float], gedi, base: Path):
+def step_bare_earth(
+    cfg: Dict[str, Any], bbox: Tuple[float, float, float, float], gedi, base: Path
+):
     if not cfg.get("enabled", True) or gedi is None:
         return None
     console.rule("[bold green]Bare-earth surface")
@@ -276,7 +284,9 @@ def _write_obj_mesh(
                 continue
             r, g, b = colors[i, j]
             # OBJ format uses Y-up. Store height in Y so Blender imports with Z-up
-            verts.append(f"v {x[i, j]:.3f} {zv:.3f} {-y[i, j]:.3f} {r:.3f} {g:.3f} {b:.3f}")
+            verts.append(
+                f"v {x[i, j]:.3f} {zv:.3f} {-y[i, j]:.3f} {r:.3f} {g:.3f} {b:.3f}"
+            )
             idx_map[i, j] = idx
             idx += 1
 
@@ -338,7 +348,9 @@ def step_export_obj(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
 
     with rio.open(dem_path) as src:
         arr = src.read(1)
-        rows, cols = np.meshgrid(np.arange(src.height), np.arange(src.width), indexing="ij")
+        rows, cols = np.meshgrid(
+            np.arange(src.height), np.arange(src.width), indexing="ij"
+        )
         lon, lat = rio.transform.xy(src.transform, rows, cols, offset="center")
         lon = np.array(lon).reshape(arr.shape)
         lat = np.array(lat).reshape(arr.shape)
@@ -364,7 +376,9 @@ def step_export_xyz(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
 
     with rio.open(dem_path) as src:
         arr = src.read(1)
-        rows, cols = np.meshgrid(np.arange(src.height), np.arange(src.width), indexing="ij")
+        rows, cols = np.meshgrid(
+            np.arange(src.height), np.arange(src.width), indexing="ij"
+        )
         lon, lat = rio.transform.xy(src.transform, rows, cols, offset="center")
         lon = np.array(lon).reshape(arr.shape)
         lat = np.array(lat).reshape(arr.shape)
@@ -387,7 +401,12 @@ def step_interactive_map(
     console.rule("[bold green]Create interactive map")
     include_data_vis = cfg.get("include_data_vis", False)
     create_interactive_map(
-        points, anomalies, bbox, base, include_data_vis=include_data_vis, sentinel=sentinel_paths
+        points,
+        anomalies,
+        bbox,
+        base,
+        include_data_vis=include_data_vis,
+        sentinel=sentinel_paths,
     )
 
 
