@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Tuple, Dict, List
+from typing import Dict, List, Optional, Tuple
 
-import requests
+import matplotlib.pyplot as plt
 import numpy as np
 import rasterio as rio
-import matplotlib.pyplot as plt
+import requests
 
 SEARCH_URL = "https://earth-search.aws.element84.com/v1/search"
 
@@ -69,10 +69,24 @@ def download_bands(feature: dict, bands: List[str], out_dir: Path) -> Dict[str, 
     return paths
 
 
-def read_band(path: Path) -> np.ndarray:
+def read_band(path: Path, bbox: Optional[Tuple[float, float, float, float]] = None) -> np.ndarray:
+    """Read a band and optionally crop it to a WGS84 ``bbox``."""
     with rio.open(path) as src:
-        arr = src.read(1).astype(np.float32) / 10000.0
+        if bbox is None:
+            arr = src.read(1).astype(np.float32) / 10000.0
+        else:
+            with rio.vrt.WarpedVRT(src, crs="EPSG:4326") as vrt:
+                window = rio.windows.from_bounds(*bbox, transform=vrt.transform)
+                arr = vrt.read(1, window=window).astype(np.float32) / 10000.0
     return arr
+
+
+def bounds(path: Path) -> Tuple[float, float, float, float]:
+    """Return (xmin, ymin, xmax, ymax) of ``path`` in WGS84."""
+    with rio.open(path) as src:
+        with rio.vrt.WarpedVRT(src, crs="EPSG:4326") as vrt:
+            b = vrt.bounds
+    return (b.left, b.bottom, b.right, b.top)
 
 
 def compute_kndvi(red: np.ndarray, nir: np.ndarray) -> np.ndarray:
@@ -80,7 +94,9 @@ def compute_kndvi(red: np.ndarray, nir: np.ndarray) -> np.ndarray:
     return np.tanh(np.square(ndvi))
 
 
-def save_true_color(b02: np.ndarray, b03: np.ndarray, b04: np.ndarray, path: Path, gain: float = 2.5) -> None:
+def save_true_color(
+    b02: np.ndarray, b03: np.ndarray, b04: np.ndarray, path: Path, gain: float = 2.5
+) -> None:
     rgb = np.stack([b04, b03, b02], axis=-1) * gain
     rgb = np.clip(rgb, 0, 1)
     plt.imsave(path, rgb)

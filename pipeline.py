@@ -4,45 +4,26 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
-from typing import Any, Dict, Tuple, List
+from typing import Any, Dict, List, Tuple
 
+import matplotlib.pyplot as plt
+import numpy as np
+import rasterio as rio
 import yaml
 from rich.console import Console
 
+from cop_dem_tools import (crop_to_bbox, fetch_cop_tiles, mosaic_cop_tiles,
+                           save_anomaly_points_png, save_dem_png,
+                           save_residual_png, save_surface_png)
 # Reuse core functions from existing scripts
-from detect_hidden_sites import (
-    fetch_gedi_points,
-    interpolate_bare_earth,
-    residual_relief,
-    detect_anomalies,
-    krige_bare_earth
-)
-from cop_dem_tools import (
-    fetch_cop_tiles,
-    mosaic_cop_tiles,
-    crop_to_bbox,
-    save_dem_png,
-    save_surface_png,
-    save_residual_png,
-    save_anomaly_points_png,
-)
-import numpy as np
-import rasterio as rio
-import matplotlib.pyplot as plt
-
+from detect_hidden_sites import (detect_anomalies, fetch_gedi_points,
+                                 interpolate_bare_earth, krige_bare_earth,
+                                 residual_relief)
 # Reuse visualization helpers
-from preview_pipeline import (
-    visualize_gedi_points,
-    create_interactive_map,
-)
-from sentinel_utils import (
-    search_sentinel2_item,
-    download_bands,
-    read_band,
-    compute_kndvi,
-    save_true_color,
-    save_index_png,
-)
+from preview_pipeline import create_interactive_map, visualize_gedi_points
+from sentinel_utils import (bounds, compute_kndvi, download_bands, read_band,
+                            save_index_png, save_true_color,
+                            search_sentinel2_item)
 
 console = Console()
 
@@ -50,6 +31,7 @@ console = Console()
 # ---------------------------------------------------------------------------
 # Utility helpers
 # ---------------------------------------------------------------------------
+
 
 def load_config(path: Path) -> Dict[str, Any]:
     """Load YAML configuration."""
@@ -66,30 +48,54 @@ def ensure_dir(path: Path) -> Path:
 # Pipeline implementation
 # ---------------------------------------------------------------------------
 
-def step_fetch_sentinel(cfg: Dict[str, Any], bbox: Tuple[float, float, float, float], base: Path) -> Dict[str, Path]:
-    """Fetch Sentinel-2 imagery and save selected bands."""
+
+def step_fetch_sentinel(
+    cfg: Dict[str, Any], bbox: Tuple[float, float, float, float], base: Path
+) -> Dict[str, Path]:
+    """Fetch Sentinel-2 imagery, save bands and visualisations."""
     if not cfg.get("enabled", True):
         return {}
     console.rule("[bold green]Fetch Sentinel-2 imagery")
-    item = search_sentinel2_item(bbox, cfg.get("time_start"), cfg.get("time_end"), cfg.get("max_cloud", 20))
+    item = search_sentinel2_item(
+        bbox, cfg.get("time_start"), cfg.get("time_end"), cfg.get("max_cloud", 20)
+    )
     if item is None:
         console.log("[red]No Sentinel-2 images found")
         return {}
     bands = cfg.get("bands", ["B02", "B03", "B04", "B08"])
     paths = download_bands(item, bands, ensure_dir(base / "sentinel2"))
-    if cfg.get("visualize", True) and set(["B02","B03","B04"]).issubset(paths):
+
+    if paths:
+        paths["bounds"] = bounds(next(iter(paths.values())))
+
+    if cfg.get("visualize", True) and {"B02", "B03", "B04"}.issubset(paths):
         b02 = read_band(paths["B02"])
         b03 = read_band(paths["B03"])
         b04 = read_band(paths["B04"])
         save_true_color(b02, b03, b04, base / "sentinel_true_color.png")
         console.log(f"[cyan]Wrote {base / 'sentinel_true_color.png'}")
-    if cfg.get("visualize", True) and {"B04","B08"}.issubset(paths):
+
+        b02_c = read_band(paths["B02"], bbox=bbox)
+        b03_c = read_band(paths["B03"], bbox=bbox)
+        b04_c = read_band(paths["B04"], bbox=bbox)
+        save_true_color(b02_c, b03_c, b04_c, base / "sentinel_true_color_clean.png")
+        console.log(f"[cyan]Wrote {base / 'sentinel_true_color_clean.png'}")
+
+    if cfg.get("visualize", True) and {"B04", "B08"}.issubset(paths):
         red = read_band(paths["B04"])
         nir = read_band(paths["B08"])
         kndvi = compute_kndvi(red, nir)
         save_index_png(kndvi, base / "sentinel_kndvi.png")
         console.log(f"[cyan]Wrote {base / 'sentinel_kndvi.png'}")
+
+        red_c = read_band(paths["B04"], bbox=bbox)
+        nir_c = read_band(paths["B08"], bbox=bbox)
+        kndvi_c = compute_kndvi(red_c, nir_c)
+        save_index_png(kndvi_c, base / "sentinel_kndvi_clean.png")
+        console.log(f"[cyan]Wrote {base / 'sentinel_kndvi_clean.png'}")
+
     return paths
+
 
 def step_fetch_data(
     cfg: Dict[str, Any],
@@ -128,8 +134,7 @@ def step_fetch_data(
         )
         if cfg.get("visualize", True) and gedi is not None:
             points: List[Tuple[float, float, float]] = [
-                (geom.y, geom.x, elev)
-                for geom, elev in zip(gedi.geometry, gedi["elev_lowestmode"])
+                (geom.y, geom.x, elev) for geom, elev in zip(gedi.geometry, gedi["elev_lowestmode"])
             ]
             visualize_gedi_points(points, bbox, base)
             console.log(f"[cyan]Wrote {Path(base) / "2_gedi_points_clean.png"}")
@@ -149,10 +154,10 @@ def step_bare_earth(cfg: Dict[str, Any], bbox: Tuple[float, float, float, float]
     xi, yi, zi = krige_bare_earth(
         gedi,
         bbox,
-        res=0.0002695,          # 15 m grid, or keep 30 m if you like
+        res=0.0002695,  # 15 m grid, or keep 30 m if you like
         variogram_model="spherical",  # or "spherical", "gaussian"
         nlags=30,
-        detrend=True             # often improves short-range detail
+        detrend=True,  # often improves short-range detail
     )
     if cfg.get("visualize", True):
         save_surface_png(
@@ -252,9 +257,7 @@ def _write_obj_mesh(
                 continue
             r, g, b = colors[i, j]
             # OBJ format uses Y-up. Store height in Y so Blender imports with Z-up
-            verts.append(
-                f"v {x[i, j]:.3f} {zv:.3f} {-y[i, j]:.3f} {r:.3f} {g:.3f} {b:.3f}"
-            )
+            verts.append(f"v {x[i, j]:.3f} {zv:.3f} {-y[i, j]:.3f} {r:.3f} {g:.3f} {b:.3f}")
             idx_map[i, j] = idx
             idx += 1
 
@@ -316,9 +319,7 @@ def step_export_obj(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
 
     with rio.open(dem_path) as src:
         arr = src.read(1)
-        rows, cols = np.meshgrid(
-            np.arange(src.height), np.arange(src.width), indexing="ij"
-        )
+        rows, cols = np.meshgrid(np.arange(src.height), np.arange(src.width), indexing="ij")
         lon, lat = rio.transform.xy(src.transform, rows, cols, offset="center")
         lon = np.array(lon).reshape(arr.shape)
         lat = np.array(lat).reshape(arr.shape)
@@ -344,9 +345,7 @@ def step_export_xyz(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
 
     with rio.open(dem_path) as src:
         arr = src.read(1)
-        rows, cols = np.meshgrid(
-            np.arange(src.height), np.arange(src.width), indexing="ij"
-        )
+        rows, cols = np.meshgrid(np.arange(src.height), np.arange(src.width), indexing="ij")
         lon, lat = rio.transform.xy(src.transform, rows, cols, offset="center")
         lon = np.array(lon).reshape(arr.shape)
         lat = np.array(lat).reshape(arr.shape)
@@ -356,17 +355,27 @@ def step_export_xyz(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
     console.log(f"[cyan]Wrote {out_dem}")
 
 
-def step_interactive_map(cfg: Dict[str, Any], points, anomalies, bbox, base: Path):
+def step_interactive_map(
+    cfg: Dict[str, Any],
+    points,
+    anomalies,
+    bbox,
+    base: Path,
+    sentinel_paths: Dict[str, Path] | None = None,
+):
     if not cfg.get("enabled", True):
         return
     console.rule("[bold green]Create interactive map")
     include_data_vis = cfg.get("include_data_vis", False)
-    create_interactive_map(points, anomalies, bbox, base, include_data_vis=include_data_vis)
+    create_interactive_map(
+        points, anomalies, bbox, base, include_data_vis=include_data_vis, sentinel=sentinel_paths
+    )
 
 
 # ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
+
 
 def run_pipeline(config: Dict[str, Any]):
     base = ensure_dir(Path(config.get("out_dir", "pipeline_out")))
@@ -409,7 +418,14 @@ def run_pipeline(config: Dict[str, Any]):
     #     ]
 
     # Step 5 – interactive map
-    step_interactive_map(config.get("step5", {}), points, anomalies, bbox, base)
+    step_interactive_map(
+        config.get("step5", {}),
+        points,
+        anomalies,
+        bbox,
+        base,
+        sentinel_paths,
+    )
 
     # Step 6 – export surfaces for Blender
     step_export_obj(config.get("step6", {}), bearth, dem_path, base)
