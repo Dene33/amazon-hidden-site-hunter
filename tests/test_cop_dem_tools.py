@@ -1,7 +1,10 @@
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
 import numpy as np
 import rasterio as rio
 from rasterio.transform import from_bounds
-from pathlib import Path
 import pytest
 
 import geopandas as gpd

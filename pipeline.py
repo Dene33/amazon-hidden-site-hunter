@@ -35,6 +35,14 @@ from preview_pipeline import (
     visualize_gedi_points,
     create_interactive_map,
 )
+from sentinel_utils import (
+    search_sentinel2_item,
+    download_bands,
+    read_band,
+    compute_kndvi,
+    save_true_color,
+    save_index_png,
+)
 
 console = Console()
 
@@ -57,6 +65,31 @@ def ensure_dir(path: Path) -> Path:
 # ---------------------------------------------------------------------------
 # Pipeline implementation
 # ---------------------------------------------------------------------------
+
+def step_fetch_sentinel(cfg: Dict[str, Any], bbox: Tuple[float, float, float, float], base: Path) -> Dict[str, Path]:
+    """Fetch Sentinel-2 imagery and save selected bands."""
+    if not cfg.get("enabled", True):
+        return {}
+    console.rule("[bold green]Fetch Sentinel-2 imagery")
+    item = search_sentinel2_item(bbox, cfg.get("time_start"), cfg.get("time_end"), cfg.get("max_cloud", 20))
+    if item is None:
+        console.log("[red]No Sentinel-2 images found")
+        return {}
+    bands = cfg.get("bands", ["B02", "B03", "B04", "B08"])
+    paths = download_bands(item, bands, ensure_dir(base / "sentinel2"))
+    if cfg.get("visualize", True) and set(["B02","B03","B04"]).issubset(paths):
+        b02 = read_band(paths["B02"])
+        b03 = read_band(paths["B03"])
+        b04 = read_band(paths["B04"])
+        save_true_color(b02, b03, b04, base / "sentinel_true_color.png")
+        console.log(f"[cyan]Wrote {base / 'sentinel_true_color.png'}")
+    if cfg.get("visualize", True) and {"B04","B08"}.issubset(paths):
+        red = read_band(paths["B04"])
+        nir = read_band(paths["B08"])
+        kndvi = compute_kndvi(red, nir)
+        save_index_png(kndvi, base / "sentinel_kndvi.png")
+        console.log(f"[cyan]Wrote {base / 'sentinel_kndvi.png'}")
+    return paths
 
 def step_fetch_data(
     cfg: Dict[str, Any],
@@ -342,6 +375,9 @@ def run_pipeline(config: Dict[str, Any]):
         raise ValueError("bbox must be provided with 4 coordinates")
     # Step 1 – fetch data
     dem_path, gedi = step_fetch_data(config.get("step1", {}), bbox, base)
+
+    # Step 1b – Sentinel-2 imagery
+    sentinel_paths = step_fetch_sentinel(config.get("sentinel", {}), bbox, base)
 
     # Step 2 – bare-earth surface
     bearth = step_bare_earth(config.get("step2", {}), bbox, gedi, base)
