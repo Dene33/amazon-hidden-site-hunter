@@ -35,8 +35,7 @@ from shapely.geometry import Point, box
 from shapely.ops import transform as shp_transform
 
 # Import the interpolation and analysis functions to replicate the pipeline
-from detect_hidden_sites import (detect_anomalies, interpolate_bare_earth,
-                                 residual_relief)
+from detect_hidden_sites import detect_anomalies, interpolate_bare_earth, residual_relief
 
 
 def parse_args():
@@ -839,6 +838,7 @@ def create_interactive_map(points, anomalies, bbox, outdir, include_data_vis=Fal
         image_files.append(str(hillshade[0].resolve()))
     image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("*_clean.png")))
     image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("sentinel_*.png")))
+    image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("sentinel_*.jpg")))
 
     debug_dir = outdir / "debug"
     if debug_dir.exists():
@@ -869,9 +869,13 @@ def create_interactive_map(points, anomalies, bbox, outdir, include_data_vis=Fal
     if sentinel and "bounds" in sentinel:
         sb = sentinel["bounds"]
         full_bounds = [[sb[1], sb[0]], [sb[3], sb[2]]]
-        if (outdir / "sentinel_true_color.png").exists():
+        if (outdir / "sentinel_true_color.jpg").exists():
+            image_bounds[str((outdir / "sentinel_true_color.jpg").resolve())] = full_bounds
+        elif (outdir / "sentinel_true_color.png").exists():
             image_bounds[str((outdir / "sentinel_true_color.png").resolve())] = full_bounds
-        if (outdir / "sentinel_kndvi.png").exists():
+        if (outdir / "sentinel_kndvi.jpg").exists():
+            image_bounds[str((outdir / "sentinel_kndvi.jpg").resolve())] = full_bounds
+        elif (outdir / "sentinel_kndvi.png").exists():
             image_bounds[str((outdir / "sentinel_kndvi.png").resolve())] = full_bounds
     crop_bounds = [[bbox[1], bbox[0]], [bbox[3], bbox[2]]]
     if (outdir / "sentinel_true_color_clean.png").exists():

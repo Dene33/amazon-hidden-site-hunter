@@ -7,6 +7,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import rasterio as rio
 import requests
+from PIL import Image
 
 SEARCH_URL = "https://earth-search.aws.element84.com/v1/search"
 
@@ -95,13 +96,38 @@ def compute_kndvi(red: np.ndarray, nir: np.ndarray) -> np.ndarray:
 
 
 def save_true_color(
-    b02: np.ndarray, b03: np.ndarray, b04: np.ndarray, path: Path, gain: float = 2.5
+    b02: np.ndarray,
+    b03: np.ndarray,
+    b04: np.ndarray,
+    path: Path,
+    gain: float = 2.5,
+    quality: int = 95,
 ) -> None:
+    """Save a true color RGB image to ``path``.
+
+    If ``path`` ends with ``.jpg`` or ``.jpeg`` the image is saved using Pillow
+    with the given ``quality`` to reduce file size while keeping good visual
+    fidelity.
+    """
+
     rgb = np.stack([b04, b03, b02], axis=-1) * gain
     rgb = np.clip(rgb, 0, 1)
-    plt.imsave(path, rgb)
+    if path.suffix.lower() in {".jpg", ".jpeg"}:
+        img = Image.fromarray((rgb * 255).astype(np.uint8))
+        img.save(path, quality=quality)
+    else:
+        plt.imsave(path, rgb)
 
 
-def save_index_png(arr: np.ndarray, path: Path, cmap: str = "RdYlGn") -> None:
+def save_index_png(arr: np.ndarray, path: Path, cmap: str = "RdYlGn", quality: int = 95) -> None:
+    """Save an index array as an image."""
+
     arr = np.clip(arr, np.nanmin(arr), np.nanmax(arr))
-    plt.imsave(path, arr, cmap=cmap)
+    if path.suffix.lower() in {".jpg", ".jpeg"}:
+        norm = plt.Normalize(vmin=float(np.nanmin(arr)), vmax=float(np.nanmax(arr)))
+        cm = plt.get_cmap(cmap)
+        rgba = cm(norm(arr))
+        img = Image.fromarray((rgba[:, :, :3] * 255).astype(np.uint8))
+        img.save(path, quality=quality)
+    else:
+        plt.imsave(path, arr, cmap=cmap)

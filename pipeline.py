@@ -12,18 +12,36 @@ import rasterio as rio
 import yaml
 from rich.console import Console
 
-from cop_dem_tools import (crop_to_bbox, fetch_cop_tiles, mosaic_cop_tiles,
-                           save_anomaly_points_png, save_dem_png,
-                           save_residual_png, save_surface_png)
+from cop_dem_tools import (
+    crop_to_bbox,
+    fetch_cop_tiles,
+    mosaic_cop_tiles,
+    save_anomaly_points_png,
+    save_dem_png,
+    save_residual_png,
+    save_surface_png,
+)
+
 # Reuse core functions from existing scripts
-from detect_hidden_sites import (detect_anomalies, fetch_gedi_points,
-                                 interpolate_bare_earth, krige_bare_earth,
-                                 residual_relief)
+from detect_hidden_sites import (
+    detect_anomalies,
+    fetch_gedi_points,
+    interpolate_bare_earth,
+    krige_bare_earth,
+    residual_relief,
+)
+
 # Reuse visualization helpers
 from preview_pipeline import create_interactive_map, visualize_gedi_points
-from sentinel_utils import (bounds, compute_kndvi, download_bands, read_band,
-                            save_index_png, save_true_color,
-                            search_sentinel2_item)
+from sentinel_utils import (
+    bounds,
+    compute_kndvi,
+    download_bands,
+    read_band,
+    save_index_png,
+    save_true_color,
+    search_sentinel2_item,
+)
 
 console = Console()
 
@@ -72,8 +90,8 @@ def step_fetch_sentinel(
         b02 = read_band(paths["B02"])
         b03 = read_band(paths["B03"])
         b04 = read_band(paths["B04"])
-        save_true_color(b02, b03, b04, base / "sentinel_true_color.png")
-        console.log(f"[cyan]Wrote {base / 'sentinel_true_color.png'}")
+        save_true_color(b02, b03, b04, base / "sentinel_true_color.jpg")
+        console.log(f"[cyan]Wrote {base / 'sentinel_true_color.jpg'}")
 
         b02_c = read_band(paths["B02"], bbox=bbox)
         b03_c = read_band(paths["B03"], bbox=bbox)
@@ -85,8 +103,8 @@ def step_fetch_sentinel(
         red = read_band(paths["B04"])
         nir = read_band(paths["B08"])
         kndvi = compute_kndvi(red, nir)
-        save_index_png(kndvi, base / "sentinel_kndvi.png")
-        console.log(f"[cyan]Wrote {base / 'sentinel_kndvi.png'}")
+        save_index_png(kndvi, base / "sentinel_kndvi.jpg")
+        console.log(f"[cyan]Wrote {base / 'sentinel_kndvi.jpg'}")
 
         red_c = read_band(paths["B04"], bbox=bbox)
         nir_c = read_band(paths["B08"], bbox=bbox)
