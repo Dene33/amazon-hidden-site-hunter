@@ -19,6 +19,7 @@ sentinel:
   time_end: '2024-12-31'
   max_cloud: 20
   visualize: true
+  dpi: 150
 
 step2:
   enabled: true

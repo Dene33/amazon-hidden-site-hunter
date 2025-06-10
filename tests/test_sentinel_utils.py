@@ -8,6 +8,7 @@ from unittest.mock import patch
 import numpy as np
 import rasterio as rio
 import requests
+from PIL import Image
 
 from sentinel_utils import (bounds, compute_kndvi, read_band,
                             search_sentinel2_item)
@@ -70,3 +71,17 @@ def test_read_band_crop_and_bounds(tmp_path: Path):
     assert cropped.shape[0] < 10 and cropped.shape[1] < 10
     b = bounds(tif)
     assert b == (0, 0, 10, 10)
+
+
+def test_save_with_dpi(tmp_path: Path):
+    from sentinel_utils import save_true_color, save_index_png
+    b = np.ones((5, 5), dtype=float)
+    tc = tmp_path / "tc.jpg"
+    save_true_color(b, b, b, tc, dpi=222)
+    with Image.open(tc) as img:
+        assert img.info.get("dpi") == (222, 222)
+
+    idx = tmp_path / "idx.jpg"
+    save_index_png(b, idx, dpi=333)
+    with Image.open(idx) as img:
+        assert img.info.get("dpi") == (333, 333)

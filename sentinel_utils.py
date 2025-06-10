@@ -102,25 +102,55 @@ def save_true_color(
     path: Path,
     gain: float = 2.5,
     quality: int = 95,
+    dpi: int = 150,
 ) -> None:
     """Save a true color RGB image to ``path``.
 
-    If ``path`` ends with ``.jpg`` or ``.jpeg`` the image is saved using Pillow
-    with the given ``quality`` to reduce file size while keeping good visual
-    fidelity.
+    Parameters
+    ----------
+    b02, b03, b04
+        Reflectance bands scaled between 0 and 1.
+    path
+        Destination file. ``.jpg`` or ``.png`` are supported.
+    gain
+        Multiplicative factor applied before clipping.
+    quality
+        JPEG quality if saving to that format.
+    dpi
+        Resolution metadata stored in the output image.
     """
 
     rgb = np.stack([b04, b03, b02], axis=-1) * gain
     rgb = np.clip(rgb, 0, 1)
     if path.suffix.lower() in {".jpg", ".jpeg"}:
         img = Image.fromarray((rgb * 255).astype(np.uint8))
-        img.save(path, quality=quality)
+        img.save(path, quality=quality, dpi=(dpi, dpi))
     else:
-        plt.imsave(path, rgb)
+        plt.imsave(path, rgb, dpi=dpi)
 
 
-def save_index_png(arr: np.ndarray, path: Path, cmap: str = "RdYlGn", quality: int = 95) -> None:
-    """Save an index array as an image."""
+def save_index_png(
+    arr: np.ndarray,
+    path: Path,
+    cmap: str = "RdYlGn",
+    quality: int = 95,
+    dpi: int = 150,
+) -> None:
+    """Save an index array as an image.
+
+    Parameters
+    ----------
+    arr
+        Array with values scaled between 0 and 1.
+    path
+        Destination ``.png`` or ``.jpg`` file.
+    cmap
+        Matplotlib colormap name.
+    quality
+        JPEG quality if saving to that format.
+    dpi
+        Resolution metadata stored in the output image.
+    """
 
     arr = np.clip(arr, np.nanmin(arr), np.nanmax(arr))
     if path.suffix.lower() in {".jpg", ".jpeg"}:
@@ -128,6 +158,6 @@ def save_index_png(arr: np.ndarray, path: Path, cmap: str = "RdYlGn", quality: i
         cm = plt.get_cmap(cmap)
         rgba = cm(norm(arr))
         img = Image.fromarray((rgba[:, :, :3] * 255).astype(np.uint8))
-        img.save(path, quality=quality)
+        img.save(path, quality=quality, dpi=(dpi, dpi))
     else:
-        plt.imsave(path, arr, cmap=cmap)
+        plt.imsave(path, arr, cmap=cmap, dpi=dpi)

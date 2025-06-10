@@ -87,29 +87,30 @@ def step_fetch_sentinel(
         paths["bounds"] = bounds(next(iter(paths.values())))
 
     if cfg.get("visualize", True) and {"B02", "B03", "B04"}.issubset(paths):
+        dpi = cfg.get("dpi", 150)
         b02 = read_band(paths["B02"])
         b03 = read_band(paths["B03"])
         b04 = read_band(paths["B04"])
-        save_true_color(b02, b03, b04, base / "sentinel_true_color.jpg")
+        save_true_color(b02, b03, b04, base / "sentinel_true_color.jpg", dpi=dpi)
         console.log(f"[cyan]Wrote {base / 'sentinel_true_color.jpg'}")
 
         b02_c = read_band(paths["B02"], bbox=bbox)
         b03_c = read_band(paths["B03"], bbox=bbox)
         b04_c = read_band(paths["B04"], bbox=bbox)
-        save_true_color(b02_c, b03_c, b04_c, base / "sentinel_true_color_clean.png")
+        save_true_color(b02_c, b03_c, b04_c, base / "sentinel_true_color_clean.png", dpi=dpi)
         console.log(f"[cyan]Wrote {base / 'sentinel_true_color_clean.png'}")
 
     if cfg.get("visualize", True) and {"B04", "B08"}.issubset(paths):
         red = read_band(paths["B04"])
         nir = read_band(paths["B08"])
         kndvi = compute_kndvi(red, nir)
-        save_index_png(kndvi, base / "sentinel_kndvi.jpg")
+        save_index_png(kndvi, base / "sentinel_kndvi.jpg", dpi=dpi)
         console.log(f"[cyan]Wrote {base / 'sentinel_kndvi.jpg'}")
 
         red_c = read_band(paths["B04"], bbox=bbox)
         nir_c = read_band(paths["B08"], bbox=bbox)
         kndvi_c = compute_kndvi(red_c, nir_c)
-        save_index_png(kndvi_c, base / "sentinel_kndvi_clean.png")
+        save_index_png(kndvi_c, base / "sentinel_kndvi_clean.png", dpi=dpi)
         console.log(f"[cyan]Wrote {base / 'sentinel_kndvi_clean.png'}")
 
     return paths
