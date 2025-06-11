@@ -853,7 +853,7 @@ def create_interactive_map(
     include_data_vis=False,
     sentinel=None,
     *,
-    include_full_sentinel=True,
+    include_full_sentinel=False,
 ):
     """Create an interactive map with pipeline results.
 
@@ -873,7 +873,7 @@ def create_interactive_map(
         present.
     sentinel : dict, optional
         Sentinel image paths and bounds returned by ``step_fetch_sentinel``.
-    include_full_sentinel : bool, default True
+    include_full_sentinel : bool, default False
         If ``True``, add the full Sentinel overlays (or their ``_web``
         versions). If ``False``, only the cropped versions are added.
     """

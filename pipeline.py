@@ -401,7 +401,7 @@ def step_interactive_map(
         return
     console.rule("[bold green]Create interactive map")
     include_data_vis = cfg.get("include_data_vis", False)
-    include_full_sentinel = cfg.get("include_full_sentinel", True)
+    include_full_sentinel = cfg.get("include_full_sentinel", False)
     create_interactive_map(
         points,
         anomalies,
