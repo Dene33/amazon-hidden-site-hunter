@@ -126,12 +126,13 @@ def test_download_bands_unique_names(tmp_path: Path) -> None:
     feature = {
         "id": "item123",
         "bbox": [0, 1, 2, 3],
+        "properties": {"datetime": "2024-04-30T10:00:00Z"},
         "assets": {"blue": {"href": "dummy"}},
     }
 
     with patch("sentinel_utils.requests.get", return_value=DummyResponse()):
         paths = download_bands(feature, ["B02"], tmp_path)
 
-    expected = "item123_0.00000_1.00000_2.00000_3.00000_B02.tif"
+    expected = "item123_0.00000_1.00000_2.00000_3.00000_20240430_B02.tif"
     assert paths["B02"].name == expected
     assert paths["B02"].exists()

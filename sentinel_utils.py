@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from datetime import datetime
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -60,6 +61,10 @@ def download_bands(
 ) -> Dict[str, Path]:
     """Download selected ``bands`` from a STAC feature.
 
+    The resulting files are named using the pattern
+    ``<item_id>_<xmin>_<ymin>_<xmax>_<ymax>_<YYYYMMDD>_<band>.tif`` so they are
+    unique and reusable across experiments.
+
     Parameters
     ----------
     out_dir : Path
@@ -89,12 +94,21 @@ def download_bands(
         if len(bbox) == 4
         else ""
     )
+    datetime_str = feature.get("properties", {}).get("datetime")
+    if datetime_str:
+        try:
+            dt = datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
+            date_part = f"_{dt.strftime('%Y%m%d')}"
+        except ValueError:
+            date_part = ""
+    else:
+        date_part = ""
     for band in bands:
         asset = BAND_MAP.get(band)
         if asset is None or asset not in feature["assets"]:
             continue
 
-        filename = f"{item_id}{bbox_str}_{band}.tif"
+        filename = f"{item_id}{bbox_str}{date_part}_{band}.tif"
         found: Optional[Path] = None
         for d in search_dirs:
             p = Path(d) / filename
