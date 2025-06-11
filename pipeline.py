@@ -118,9 +118,9 @@ def step_fetch_sentinel(
         red = read_band(paths["B04"], bbox=sb)
         nir = read_band(paths["B08"], bbox=sb)
         kndvi = compute_kndvi(red, nir)
-        save_index_png(kndvi, base / "sentinel_kndvi.jpg", dpi=dpi)
-        console.log(f"[cyan]Wrote {base / 'sentinel_kndvi.jpg'}")
-        resize_image(base / "sentinel_kndvi.jpg")
+        save_index_png(kndvi, base / "sentinel_kndvi.png", dpi=dpi)
+        console.log(f"[cyan]Wrote {base / 'sentinel_kndvi.png'}")
+        resize_image(base / "sentinel_kndvi.png")
 
         red_c = read_band(paths["B04"], bbox=bbox)
         nir_c = read_band(paths["B08"], bbox=bbox)
