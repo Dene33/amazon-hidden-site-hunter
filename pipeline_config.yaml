@@ -14,7 +14,7 @@ step1:
   visualize: true
 
 sentinel:
-  enabled: false
+  enabled: true
   time_start: '2024-01-01'
   time_end: '2024-12-31'
   max_cloud: 20
@@ -42,7 +42,7 @@ step4:
 step5:
   enabled: true
   include_data_vis: true
-  include_full_sentinel: true
+  include_full_sentinel: false
 
 step6:
   enabled: true
