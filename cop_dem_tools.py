@@ -33,10 +33,21 @@ def cop_tile_url(lat: float, lon: float) -> str:
     stem = f"Copernicus_DSM_COG_30_{ns}{lat_s}_{ew}{lon_s}_DEM"
     return f"{COP_DEM_BASE}/{stem}/{stem}.tif"
 
-def fetch_cop_tiles(bbox: Tuple[float, float, float, float], out_dir: Path) -> List[Path]:
-    """Download COP-DEM90 tiles intersecting ``bbox`` into ``out_dir``."""
+def fetch_cop_tiles(
+    bbox: Tuple[float, float, float, float],
+    out_dir: Path,
+    *,
+    source_dirs: List[Path] | None = None,
+) -> List[Path]:
+    """Download COP-DEM90 tiles intersecting ``bbox`` into ``out_dir``.
+
+    Additional directories listed in ``source_dirs`` are checked for existing
+    tiles before downloading. Any found tiles are used directly.
+    """
     xmin, ymin, xmax, ymax = bbox
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    extra_dirs = [Path(d) for d in (source_dirs or [])]
 
     lat_rng = range(math.floor(ymin), math.ceil(ymax) + 1)
     lon_rng = range(math.floor(xmin), math.ceil(xmax) + 1)
@@ -44,14 +55,24 @@ def fetch_cop_tiles(bbox: Tuple[float, float, float, float], out_dir: Path) -> L
     tif_paths: List[Path] = []
     for lat, lon in itertools.product(lat_rng, lon_rng):
         url = cop_tile_url(lat, lon)
-        local = out_dir / Path(url).name
-        if not local.exists():
-            console.log(f"Fetching {url}")
-            with requests.get(url, stream=True, timeout=60) as r:
-                r.raise_for_status()
-                with open(local, "wb") as fp:
-                    for chunk in r.iter_content(131_072):
-                        fp.write(chunk)
+        fname = Path(url).name
+        found: Optional[Path] = None
+        for d in [out_dir, *extra_dirs]:
+            p = Path(d) / fname
+            if p.exists():
+                found = p
+                break
+        if found is not None:
+            tif_paths.append(found)
+            continue
+
+        local = out_dir / fname
+        console.log(f"Fetching {url}")
+        with requests.get(url, stream=True, timeout=60) as r:
+            r.raise_for_status()
+            with open(local, "wb") as fp:
+                for chunk in r.iter_content(131_072):
+                    fp.write(chunk)
         tif_paths.append(local)
 
     if not tif_paths:

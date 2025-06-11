@@ -50,23 +50,50 @@ BAND_MAP = {
 }
 
 
-def download_bands(feature: dict, bands: List[str], out_dir: Path) -> Dict[str, Path]:
-    """Download selected ``bands`` from a STAC feature into ``out_dir``."""
+def download_bands(
+    feature: dict,
+    bands: List[str],
+    out_dir: Path,
+    *,
+    source_dirs: Optional[List[Path]] = None,
+) -> Dict[str, Path]:
+    """Download selected ``bands`` from a STAC feature into ``out_dir``.
+
+    If ``source_dirs`` are provided, they are checked for existing band files
+    before downloading. Any found files are used directly without duplication.
+    """
+
     out_dir.mkdir(parents=True, exist_ok=True)
+    extra_dirs = [Path(d) for d in (source_dirs or [])]
     paths: Dict[str, Path] = {}
     for band in bands:
         asset = BAND_MAP.get(band)
         if asset is None or asset not in feature["assets"]:
             continue
+
+        filename = f"{band}.tif"
+        # Look for an existing file in the destination directory first and
+        # then in any additional source directories.
+        found: Optional[Path] = None
+        for d in [out_dir, *extra_dirs]:
+            p = Path(d) / filename
+            if p.exists():
+                found = p
+                break
+
+        if found is not None:
+            paths[band] = found
+            continue
+
         url = feature["assets"][asset]["href"]
-        local = out_dir / f"{band}.tif"
-        if not local.exists():
-            with requests.get(url, stream=True, timeout=60) as r:
-                r.raise_for_status()
-                with open(local, "wb") as f:
-                    for chunk in r.iter_content(1_048_576):
-                        f.write(chunk)
+        local = out_dir / filename
+        with requests.get(url, stream=True, timeout=60) as r:
+            r.raise_for_status()
+            with open(local, "wb") as f:
+                for chunk in r.iter_content(1_048_576):
+                    f.write(chunk)
         paths[band] = local
+
     return paths
 
 

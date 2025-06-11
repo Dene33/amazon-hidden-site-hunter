@@ -7,10 +7,12 @@ step1:
   enabled: true
   fetch_cop_tiles:
     enabled: true
+    source_dirs: []
   fetch_gedi_points:
     enabled: true
     time_start: '2017-01-01'
     time_end: '2025-01-01'
+    source_dirs: []
   visualize: true
 
 sentinel:
@@ -20,6 +22,7 @@ sentinel:
   max_cloud: 20
   visualize: true
   dpi: 150
+  source_dirs: []
 
 step2:
   enabled: true

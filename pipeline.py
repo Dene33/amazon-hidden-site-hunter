@@ -82,7 +82,14 @@ def step_fetch_sentinel(
         console.log("[red]No Sentinel-2 images found")
         return {}
     bands = cfg.get("bands", ["B02", "B03", "B04", "B08"])
-    paths = download_bands(item, bands, ensure_dir(base / "sentinel2"))
+    src_dirs = [Path(p) for p in cfg.get("source_dirs", [])]
+    out_dir = src_dirs[0] if src_dirs else base / "sentinel2"
+    paths = download_bands(
+        item,
+        bands,
+        ensure_dir(Path(out_dir)),
+        source_dirs=src_dirs[1:],
+    )
 
     if paths:
         sb = bounds(next(iter(paths.values())))
@@ -140,7 +147,10 @@ def step_fetch_data(
 
     if cfg.get("fetch_cop_tiles", {}).get("enabled", True):
         console.rule("[bold green]Fetch Copernicus DEM")
-        tiles = fetch_cop_tiles(tuple(bbox), base)
+        cop_cfg = cfg.get("fetch_cop_tiles", {})
+        src_dirs = [Path(p) for p in cop_cfg.get("source_dirs", [])]
+        out_dir = src_dirs[0] if src_dirs else base
+        tiles = fetch_cop_tiles(tuple(bbox), ensure_dir(Path(out_dir)), source_dirs=src_dirs[1:])
         mosaic = mosaic_cop_tiles(tiles, base / "cop90_mosaic.tif", bbox)
         crop = crop_to_bbox(mosaic, bbox, base / "cop90_crop.tif")
         dem_path = crop
@@ -151,11 +161,14 @@ def step_fetch_data(
     if cfg.get("fetch_gedi_points", {}).get("enabled", True):
         console.rule("[bold green]Fetch GEDI footprints")
         gedi_cfg = cfg.get("fetch_gedi_points", {})
+        src_dirs = [Path(p) for p in gedi_cfg.get("source_dirs", [])]
+        cache_dir = src_dirs[0] if src_dirs else base / "gedi_cache"
         gedi = fetch_gedi_points(
             tuple(bbox),
             time_start=gedi_cfg.get("time_start"),
             time_end=gedi_cfg.get("time_end"),
-            cache_dir=ensure_dir(base / "gedi_cache"),
+            cache_dir=ensure_dir(Path(cache_dir)),
+            source_dirs=src_dirs[1:],
         )
         if cfg.get("visualize", True) and gedi is not None:
             points: List[Tuple[float, float, float]] = [

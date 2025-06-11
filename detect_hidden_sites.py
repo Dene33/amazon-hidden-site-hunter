@@ -116,6 +116,7 @@ def fetch_gedi_points(
     time_start: str,
     time_end: str,
     cache_dir: Path,
+    source_dirs: List[Path] | None = None,
     max_points: int = 50_000,
     threads: int = 4,
     verify_sizes: bool = True,  # Control size verification
@@ -145,6 +146,23 @@ def fetch_gedi_points(
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     console.log(f"Downloading (or re-using) files → {cache_dir}")
+
+    extra_dirs = [Path(d) for d in (source_dirs or [])]
+
+    # Re-use existing files from ``source_dirs`` by linking or copying them
+    for g in granules:
+        name = Path(g.data_links()[0]).name
+        dest = cache_dir / name
+        if dest.exists():
+            continue
+        for d in extra_dirs:
+            src = Path(d) / name
+            if src.exists():
+                try:
+                    os.symlink(src.resolve(), dest)
+                except OSError:
+                    shutil.copy2(src, dest)
+                break
 
     granules_to_download: List[Any] = []
 
