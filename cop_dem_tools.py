@@ -38,16 +38,24 @@ def fetch_cop_tiles(
     out_dir: Path,
     *,
     source_dirs: List[Path] | None = None,
+    download_dir: Path | None = None,
 ) -> List[Path]:
-    """Download COP-DEM90 tiles intersecting ``bbox`` into ``out_dir``.
+    """Download COP-DEM90 tiles intersecting ``bbox``.
 
-    Additional directories listed in ``source_dirs`` are checked for existing
-    tiles before downloading. Any found tiles are used directly.
+    ``out_dir`` is checked first for existing tiles, followed by any directories
+    in ``source_dirs``. Missing tiles are downloaded to ``download_dir`` (or
+    ``out_dir`` if not provided).
     """
     xmin, ymin, xmax, ymax = bbox
-    out_dir.mkdir(parents=True, exist_ok=True)
+    out_dir = Path(out_dir)
+    download_dir = Path(download_dir or out_dir)
+    download_dir.mkdir(parents=True, exist_ok=True)
 
-    extra_dirs = [Path(d) for d in (source_dirs or [])]
+    search_dirs = [out_dir]
+    for d in source_dirs or []:
+        p = Path(d)
+        if p not in search_dirs:
+            search_dirs.append(p)
 
     lat_rng = range(math.floor(ymin), math.ceil(ymax) + 1)
     lon_rng = range(math.floor(xmin), math.ceil(xmax) + 1)
@@ -57,7 +65,7 @@ def fetch_cop_tiles(
         url = cop_tile_url(lat, lon)
         fname = Path(url).name
         found: Optional[Path] = None
-        for d in [out_dir, *extra_dirs]:
+        for d in search_dirs:
             p = Path(d) / fname
             if p.exists():
                 found = p
@@ -66,7 +74,7 @@ def fetch_cop_tiles(
             tif_paths.append(found)
             continue
 
-        local = out_dir / fname
+        local = download_dir / fname
         console.log(f"Fetching {url}")
         with requests.get(url, stream=True, timeout=60) as r:
             r.raise_for_status()

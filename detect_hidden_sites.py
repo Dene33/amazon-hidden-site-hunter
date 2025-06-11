@@ -14,7 +14,7 @@ v0.5  — persistent GEDI cache
 """
 
 from __future__ import annotations
-import argparse, datetime as dt, math, os, shutil
+import argparse, datetime as dt, math
 from pathlib import Path
 from typing import Any, List, Tuple
 from getpass import getpass
@@ -144,64 +144,59 @@ def fetch_gedi_points(
         f"({total_bytes/1_048_576:,.1f} MiB)"
     )
 
+    cache_dir = Path(cache_dir)
     cache_dir.mkdir(parents=True, exist_ok=True)
     console.log(f"Downloading (or re-using) files → {cache_dir}")
 
     extra_dirs = [Path(d) for d in (source_dirs or [])]
+    download_dir = extra_dirs[0] if extra_dirs else cache_dir
+    download_dir.mkdir(parents=True, exist_ok=True)
 
-    # Re-use existing files from ``source_dirs`` by linking or copying them
-    for g in granules:
-        name = Path(g.data_links()[0]).name
-        dest = cache_dir / name
-        if dest.exists():
-            continue
-        for d in extra_dirs:
-            src = Path(d) / name
-            if src.exists():
-                try:
-                    os.symlink(src.resolve(), dest)
-                except OSError:
-                    shutil.copy2(src, dest)
-                break
+    search_dirs = [cache_dir]
+    for d in extra_dirs:
+        if d not in search_dirs:
+            search_dirs.append(d)
 
     granules_to_download: List[Any] = []
+    local_paths: List[Path] = []
 
-    if verify_sizes:
-        for g in granules:
+    for g in granules:
+        fname = Path(g.data_links()[0]).name
+        found: Path | None = None
+        for d in search_dirs:
+            p = d / fname
+            if p.exists():
+                found = p
+                break
+
+        if found is not None and verify_sizes:
             expected_size = _size_mb_to_bytes(g.size())
-            local_path = cache_dir / Path(g.data_links()[0]).name
-
-            needs_download = True
-            if local_path.exists():
-                actual_size = local_path.stat().st_size
-                if expected_size > 0:
-                    pct_diff = abs(actual_size - expected_size) / expected_size * 100
-                    if pct_diff <= size_tolerance_pct:
-                        console.log(f"[green]Verified cached file: {local_path.name}")
-                        needs_download = False
+            if expected_size > 0:
+                actual_size = found.stat().st_size
+                pct_diff = abs(actual_size - expected_size) / expected_size * 100
+                if pct_diff > size_tolerance_pct:
+                    if actual_size < expected_size * 0.9:
+                        console.log(
+                            f"[yellow]File likely incomplete: {found.name}: "
+                            f"expected {expected_size} bytes, got {actual_size} bytes "
+                            f"({pct_diff:.2f}% difference)"
+                        )
                     else:
-                        if actual_size < expected_size * 0.9:
-                            console.log(
-                                f"[yellow]File likely incomplete: {local_path.name}: "
-                                f"expected {expected_size} bytes, got {actual_size} bytes "
-                                f"({pct_diff:.2f}% difference)"
-                            )
-                            local_path.unlink()
-                        else:
-                            console.log(
-                                f"[yellow]Size difference outside tolerance for {local_path.name}: "
-                                f"{pct_diff:.2f}% difference, expected {expected_size} bytes, "
-                                f"got {actual_size} bytes"
-                            )
-                            local_path.unlink()
+                        console.log(
+                            f"[yellow]Size difference outside tolerance for {found.name}: "
+                            f"{pct_diff:.2f}% difference, expected {expected_size} bytes, "
+                            f"got {actual_size} bytes"
+                        )
+                    found = None
+                else:
+                    console.log(f"[green]Verified cached file: {found.name}")
 
-            if needs_download:
-                granules_to_download.append(g)
-    else:
-        for g in granules:
-            local_path = cache_dir / Path(g.data_links()[0]).name
-            if not local_path.exists():
-                granules_to_download.append(g)
+        if found is not None:
+            local_paths.append(found)
+            continue
+
+        granules_to_download.append(g)
+        local_paths.append(download_dir / fname)
 
     if granules_to_download:
         to_dl_bytes = sum(_size_mb_to_bytes(g.size()) for g in granules_to_download)
@@ -211,14 +206,13 @@ def fetch_gedi_points(
         )
         resp = input("Download missing files? [y/N] ").strip().lower()
         if resp == "y":
-            earthaccess.download(granules_to_download, cache_dir, threads=threads)
+            earthaccess.download(granules_to_download, download_dir, threads=threads)
         else:
             raise SystemExit("Cancelled by user.")
     else:
         console.log("All granules already downloaded")
 
-    # Get list of all local files regardless of how they were obtained
-    local_paths = [cache_dir / Path(g.data_links()[0]).name for g in granules]
+    # ``local_paths`` already contains the paths for all granules
     
     rows: List[pd.DataFrame] = []
     for p in track(local_paths, description="Parsing GEDI files"):

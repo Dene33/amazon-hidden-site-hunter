@@ -56,17 +56,31 @@ def download_bands(
     out_dir: Path,
     *,
     source_dirs: Optional[List[Path]] = None,
+    download_dir: Optional[Path] = None,
 ) -> Dict[str, Path]:
-    """Download selected ``bands`` from a STAC feature into ``out_dir``.
+    """Download selected ``bands`` from a STAC feature.
 
-    ``source_dirs`` may contain additional directories to search for existing
-    files before downloading. Band files are saved with the pattern
-    ``<item_id>_<bbox>_<band>.tif`` so they can be uniquely identified across
-    runs. ``bbox`` refers to the actual bounding box of the Sentinel item.
+    Parameters
+    ----------
+    out_dir : Path
+        Directory checked first for existing files. This matches the original
+        pipeline output folder.
+    source_dirs : list of Path, optional
+        Additional directories checked for previously downloaded data.
+    download_dir : Path, optional
+        Directory where new downloads are stored. Defaults to ``out_dir``.
     """
 
-    out_dir.mkdir(parents=True, exist_ok=True)
-    extra_dirs = [Path(d) for d in (source_dirs or [])]
+    out_dir = Path(out_dir)
+    download_dir = Path(download_dir or out_dir)
+    download_dir.mkdir(parents=True, exist_ok=True)
+
+    search_dirs = [out_dir]
+    for d in source_dirs or []:
+        p = Path(d)
+        if p not in search_dirs:
+            search_dirs.append(p)
+
     paths: Dict[str, Path] = {}
     item_id = feature.get("id", "item")
     bbox = feature.get("bbox", [])
@@ -81,10 +95,8 @@ def download_bands(
             continue
 
         filename = f"{item_id}{bbox_str}_{band}.tif"
-        # Look for an existing file in the destination directory first and
-        # then in any additional source directories.
         found: Optional[Path] = None
-        for d in [out_dir, *extra_dirs]:
+        for d in search_dirs:
             p = Path(d) / filename
             if p.exists():
                 found = p
@@ -95,7 +107,7 @@ def download_bands(
             continue
 
         url = feature["assets"][asset]["href"]
-        local = out_dir / filename
+        local = download_dir / filename
         with requests.get(url, stream=True, timeout=60) as r:
             r.raise_for_status()
             with open(local, "wb") as f:
