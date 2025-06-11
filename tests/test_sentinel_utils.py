@@ -10,8 +10,7 @@ import rasterio as rio
 import requests
 from PIL import Image
 
-from sentinel_utils import (bounds, compute_kndvi, read_band,
-                            search_sentinel2_item)
+from sentinel_utils import bounds, compute_kndvi, read_band, search_sentinel2_item
 
 
 def test_compute_kndvi_simple():
@@ -42,7 +41,10 @@ def test_search_sentinel_http_error():
 
 
 def _create_raster(
-    path: Path, data: np.ndarray, bounds: tuple[float, float, float, float], crs: str = "EPSG:4326"
+    path: Path,
+    data: np.ndarray,
+    bounds: tuple[float, float, float, float],
+    crs: str = "EPSG:4326",
 ) -> None:
     from rasterio.transform import from_bounds
 
@@ -75,6 +77,7 @@ def test_read_band_crop_and_bounds(tmp_path: Path):
 
 def test_save_with_dpi(tmp_path: Path):
     from sentinel_utils import save_true_color, save_index_png
+
     b = np.ones((5, 5), dtype=float)
     tc = tmp_path / "tc.jpg"
     save_true_color(b, b, b, tc, dpi=222)
@@ -85,3 +88,16 @@ def test_save_with_dpi(tmp_path: Path):
     save_index_png(b, idx, dpi=333)
     with Image.open(idx) as img:
         assert img.info.get("dpi") == (333, 333)
+
+
+def test_resize_image(tmp_path: Path):
+    from sentinel_utils import resize_image
+
+    src = tmp_path / "orig.jpg"
+    Image.new("RGB", (100, 40), color="red").save(src)
+
+    resized = resize_image(src, factor=0.5)
+
+    assert resized.name == "orig_web.jpg"
+    with Image.open(resized) as img:
+        assert img.size == (50, 20)

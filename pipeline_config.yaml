@@ -42,6 +42,7 @@ step4:
 step5:
   enabled: true
   include_data_vis: true
+  include_full_sentinel: true
 
 step6:
   enabled: true

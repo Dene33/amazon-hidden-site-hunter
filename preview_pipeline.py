@@ -35,7 +35,11 @@ from shapely.geometry import Point, box
 from shapely.ops import transform as shp_transform
 
 # Import the interpolation and analysis functions to replicate the pipeline
-from detect_hidden_sites import detect_anomalies, interpolate_bare_earth, residual_relief
+from detect_hidden_sites import (
+    detect_anomalies,
+    interpolate_bare_earth,
+    residual_relief,
+)
 
 
 def parse_args():
@@ -52,7 +56,9 @@ def parse_args():
     )
     parser.add_argument("--dem", help="Path to Copernicus DEM file (cop90_mosaic.tif)")
     parser.add_argument("--cache", help="GEDI cache directory")
-    parser.add_argument("--geojson", help="Path to output anomalies.geojson file (if available)")
+    parser.add_argument(
+        "--geojson", help="Path to output anomalies.geojson file (if available)"
+    )
     parser.add_argument(
         "--resolution",
         type=float,
@@ -63,13 +69,20 @@ def parse_args():
         "--sigma", type=int, default=2, help="Gaussian σ for residual-relief smoothing"
     )
     parser.add_argument(
-        "--outdir", default="preview_outputs", help="Directory to save preview visualizations"
+        "--outdir",
+        default="preview_outputs",
+        help="Directory to save preview visualizations",
     )
     parser.add_argument(
-        "--max-points", type=int, default=1000000000000000, help="Maximum GEDI points to display"
+        "--max-points",
+        type=int,
+        default=1000000000000000,
+        help="Maximum GEDI points to display",
     )
     parser.add_argument(
-        "--interactive", action="store_true", help="Create interactive map visualizations too"
+        "--interactive",
+        action="store_true",
+        help="Create interactive map visualizations too",
     )
     return parser.parse_args()
 
@@ -132,7 +145,9 @@ def load_gedi_points(cache_dir, bbox, max_points):
                     elev = _read_gedi_var(h5[f"{beam}/elev_lowestmode"])
 
                     # optional, but HIGHLY recommended:
-                    qflag = _read_gedi_var(h5[f"{beam}/quality_flag"], coerce_float=False)
+                    qflag = _read_gedi_var(
+                        h5[f"{beam}/quality_flag"], coerce_float=False
+                    )
                     mask = (
                         (lon >= xmin)
                         & (lon <= xmax)
@@ -146,7 +161,9 @@ def load_gedi_points(cache_dir, bbox, max_points):
                         lon_filtered = lon[mask]
                         elev_filtered = elev[mask]
 
-                        for lat_i, lon_i, elev_i in zip(lat_filtered, lon_filtered, elev_filtered):
+                        for lat_i, lon_i, elev_i in zip(
+                            lat_filtered, lon_filtered, elev_filtered
+                        ):
                             points.append((float(lat_i), float(lon_i), float(elev_i)))
 
                         if len(points) >= max_points:
@@ -431,7 +448,12 @@ def visualize_copernicus_dem(
     # replace NaN by mean just for lighting; we'll zero-out alpha later
     dem_for_ls = np.where(np.isnan(dem), np.nanmean(dem), dem)
     rgb = ls.shade(
-        dem_for_ls, cmap=cmap, blend_mode="soft", vert_exag=vert_exag, vmin=vmin, vmax=vmax
+        dem_for_ls,
+        cmap=cmap,
+        blend_mode="soft",
+        vert_exag=vert_exag,
+        vmin=vmin,
+        vmax=vmax,
     )
 
     # make nodata fully transparent
@@ -461,7 +483,9 @@ def visualize_copernicus_dem(
         # colour-bar
         divider = make_axes_locatable(ax)
         cax = divider.append_axes("right", size="4%", pad=0.05)
-        fig.colorbar(mpl.cm.ScalarMappable(norm=norm, cmap=cmap), cax=cax, label="Elevation (m)")
+        fig.colorbar(
+            mpl.cm.ScalarMappable(norm=norm, cmap=cmap), cax=cax, label="Elevation (m)"
+        )
 
         # AOI rectangle
         if bbox:
@@ -481,7 +505,9 @@ def visualize_copernicus_dem(
 
         ax.set_xlabel("Easting (m)" if project else "Longitude")
         ax.set_ylabel("Northing (m)" if project else "Latitude")
-        ax.set_title("Copernicus DEM (Web-Mercator)" if project else "Copernicus DEM (WGS-84)")
+        ax.set_title(
+            "Copernicus DEM (Web-Mercator)" if project else "Copernicus DEM (WGS-84)"
+        )
 
     # ─── 4. save PNG ---------------------------------------------------------------
     outdir = Path(outdir)
@@ -492,7 +518,10 @@ def visualize_copernicus_dem(
     out_path = outdir / f"{base}.png"
 
     fig.savefig(
-        out_path, dpi=dpi, bbox_inches="tight" if bare else None, pad_inches=0 if bare else 0.1
+        out_path,
+        dpi=dpi,
+        bbox_inches="tight" if bare else None,
+        pad_inches=0 if bare else 0.1,
     )
     plt.close(fig)
     print(f"✓ saved → {out_path}")
@@ -524,7 +553,9 @@ def visualize_gedi_points(points, bbox, outdir):
     fig, ax = plt.subplots(figsize=(12, 10))
 
     # Plot points colored by elevation
-    scatter = ax.scatter(lons, lats, c=elevs, cmap="viridis", s=2, alpha=0.7, edgecolors="none")
+    scatter = ax.scatter(
+        lons, lats, c=elevs, cmap="viridis", s=2, alpha=0.7, edgecolors="none"
+    )
 
     # Add colorbar
     divider = make_axes_locatable(ax)
@@ -683,7 +714,9 @@ def visualize_residual_relief(xi, yi, zi, dem_path, outdir):
 
     # Plot the residual relief model
     extent = [np.min(xi), np.max(xi), np.min(yi), np.max(yi)]
-    im = ax.imshow(rrm_valid, extent=extent, origin="upper", cmap="RdBu_r", vmin=vmin, vmax=vmax)
+    im = ax.imshow(
+        rrm_valid, extent=extent, origin="upper", cmap="RdBu_r", vmin=vmin, vmax=vmax
+    )
 
     # Add colorbar
     divider = make_axes_locatable(ax)
@@ -705,7 +738,9 @@ def visualize_residual_relief(xi, yi, zi, dem_path, outdir):
 
     # ----- clean version for overlays -----
     fig2, ax2 = plt.subplots(figsize=(8, 8))
-    ax2.imshow(rrm_valid, extent=extent, origin="upper", cmap="RdBu_r", vmin=vmin, vmax=vmax)
+    ax2.imshow(
+        rrm_valid, extent=extent, origin="upper", cmap="RdBu_r", vmin=vmin, vmax=vmax
+    )
     ax2.set_xlim(xmin, xmax)
     ax2.set_ylim(ymin, ymax)
     ax2.axis("off")
@@ -737,7 +772,13 @@ def visualize_anomalies(anomalies, rrm, xi, yi, sigma, geojson_path, outdir):
     vmin = -vmax
 
     im = ax.imshow(
-        rrm, extent=extent, origin="upper", cmap="RdBu_r", vmin=vmin, vmax=vmax, alpha=0.7
+        rrm,
+        extent=extent,
+        origin="upper",
+        cmap="RdBu_r",
+        vmin=vmin,
+        vmax=vmax,
+        alpha=0.7,
     )
 
     # Plot detected anomalies
@@ -774,7 +815,12 @@ def visualize_anomalies(anomalies, rrm, xi, yi, sigma, geojson_path, outdir):
         try:
             truth_gdf = gpd.read_file(geojson_path)
             truth_gdf.plot(
-                ax=ax, color="none", edgecolor="lime", linewidth=2, zorder=5, label="Known Sites"
+                ax=ax,
+                color="none",
+                edgecolor="lime",
+                linewidth=2,
+                zorder=5,
+                label="Known Sites",
             )
             ax.legend()
         except Exception as e:
@@ -799,7 +845,16 @@ def visualize_anomalies(anomalies, rrm, xi, yi, sigma, geojson_path, outdir):
     return anomalies
 
 
-def create_interactive_map(points, anomalies, bbox, outdir, include_data_vis=False, sentinel=None):
+def create_interactive_map(
+    points,
+    anomalies,
+    bbox,
+    outdir,
+    include_data_vis=False,
+    sentinel=None,
+    *,
+    include_full_sentinel=False,
+):
     """Create an interactive map with pipeline results.
 
     Parameters
@@ -818,6 +873,9 @@ def create_interactive_map(points, anomalies, bbox, outdir, include_data_vis=Fal
         present.
     sentinel : dict, optional
         Sentinel image paths and bounds returned by ``step_fetch_sentinel``.
+    include_full_sentinel : bool, default False
+        If ``True``, add the full Sentinel overlays (or their ``_web``
+        versions). If ``False``, only the cropped versions are added.
     """
     if anomalies is None and not Path(outdir).exists():
         print("No data for interactive map")
@@ -837,12 +895,36 @@ def create_interactive_map(points, anomalies, bbox, outdir, include_data_vis=Fal
     if hillshade:
         image_files.append(str(hillshade[0].resolve()))
     image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("*_clean.png")))
-    image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("sentinel_*.png")))
-    image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("sentinel_*.jpg")))
+    if include_full_sentinel:
+        image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("sentinel_*.png")))
+        image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("sentinel_*.jpg")))
+
+    # Prefer downsampled versions when available
+    if include_full_sentinel:
+        def _swap_for_web(name: str) -> None:
+            web_jpg = outdir / f"{name}_web.jpg"
+            web_png = outdir / f"{name}_web.png"
+            target = None
+            if web_jpg.exists():
+                target = web_jpg
+            elif web_png.exists():
+                target = web_png
+            if target:
+                for ext in (".jpg", ".png"):
+                    p = str((outdir / f"{name}{ext}").resolve())
+                    if p in image_files:
+                        image_files.remove(p)
+                if str(target.resolve()) not in image_files:
+                    image_files.append(str(target.resolve()))
+
+        _swap_for_web("sentinel_true_color")
+        _swap_for_web("sentinel_kndvi")
 
     debug_dir = outdir / "debug"
     if debug_dir.exists():
-        image_files.extend(str(p.resolve()) for p in sorted(debug_dir.glob("*_clean.png")))
+        image_files.extend(
+            str(p.resolve()) for p in sorted(debug_dir.glob("*_clean.png"))
+        )
 
     if include_data_vis:
         from data_vis import load_reference_datasets
@@ -866,20 +948,24 @@ def create_interactive_map(points, anomalies, bbox, outdir, include_data_vis=Fal
                 ]
 
     # Sentinel bounds for full and cropped images
-    if sentinel and "bounds" in sentinel:
+    if include_full_sentinel and sentinel and "bounds" in sentinel:
         sb = sentinel["bounds"]
         full_bounds = [[sb[1], sb[0]], [sb[3], sb[2]]]
-        if (outdir / "sentinel_true_color.jpg").exists():
-            image_bounds[str((outdir / "sentinel_true_color.jpg").resolve())] = full_bounds
-        elif (outdir / "sentinel_true_color.png").exists():
-            image_bounds[str((outdir / "sentinel_true_color.png").resolve())] = full_bounds
-        if (outdir / "sentinel_kndvi.jpg").exists():
-            image_bounds[str((outdir / "sentinel_kndvi.jpg").resolve())] = full_bounds
-        elif (outdir / "sentinel_kndvi.png").exists():
-            image_bounds[str((outdir / "sentinel_kndvi.png").resolve())] = full_bounds
+
+        def _add_bound(name: str) -> None:
+            for suffix in ["_web.jpg", "_web.png", ".jpg", ".png"]:
+                f = outdir / f"{name}{suffix}"
+                if f.exists():
+                    image_bounds[str(f.resolve())] = full_bounds
+                    break
+
+        _add_bound("sentinel_true_color")
+        _add_bound("sentinel_kndvi")
     crop_bounds = [[bbox[1], bbox[0]], [bbox[3], bbox[2]]]
     if (outdir / "sentinel_true_color_clean.png").exists():
-        image_bounds[str((outdir / "sentinel_true_color_clean.png").resolve())] = crop_bounds
+        image_bounds[str((outdir / "sentinel_true_color_clean.png").resolve())] = (
+            crop_bounds
+        )
     if (outdir / "sentinel_kndvi_clean.png").exists():
         image_bounds[str((outdir / "sentinel_kndvi_clean.png").resolve())] = crop_bounds
 
