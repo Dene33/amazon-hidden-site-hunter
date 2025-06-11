@@ -123,10 +123,15 @@ def test_download_bands_unique_names(tmp_path: Path) -> None:
         def iter_content(self, chunk_size):
             yield b"123"
 
-    feature = {"id": "item123", "assets": {"blue": {"href": "dummy"}}}
+    feature = {
+        "id": "item123",
+        "bbox": [0, 1, 2, 3],
+        "assets": {"blue": {"href": "dummy"}},
+    }
 
     with patch("sentinel_utils.requests.get", return_value=DummyResponse()):
         paths = download_bands(feature, ["B02"], tmp_path)
 
-    assert paths["B02"].name == "item123_B02.tif"
+    expected = "item123_0.00000_1.00000_2.00000_3.00000_B02.tif"
+    assert paths["B02"].name == expected
     assert paths["B02"].exists()

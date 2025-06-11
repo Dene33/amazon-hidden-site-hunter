@@ -61,19 +61,26 @@ def download_bands(
 
     ``source_dirs`` may contain additional directories to search for existing
     files before downloading. Band files are saved with the pattern
-    ``<item_id>_<band>.tif`` so they can be uniquely identified across runs.
+    ``<item_id>_<bbox>_<band>.tif`` so they can be uniquely identified across
+    runs. ``bbox`` refers to the actual bounding box of the Sentinel item.
     """
 
     out_dir.mkdir(parents=True, exist_ok=True)
     extra_dirs = [Path(d) for d in (source_dirs or [])]
     paths: Dict[str, Path] = {}
     item_id = feature.get("id", "item")
+    bbox = feature.get("bbox", [])
+    bbox_str = (
+        f"_{bbox[0]:.5f}_{bbox[1]:.5f}_{bbox[2]:.5f}_{bbox[3]:.5f}"
+        if len(bbox) == 4
+        else ""
+    )
     for band in bands:
         asset = BAND_MAP.get(band)
         if asset is None or asset not in feature["assets"]:
             continue
 
-        filename = f"{item_id}_{band}.tif"
+        filename = f"{item_id}{bbox_str}_{band}.tif"
         # Look for an existing file in the destination directory first and
         # then in any additional source directories.
         found: Optional[Path] = None
