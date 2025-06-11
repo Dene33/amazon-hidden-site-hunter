@@ -59,19 +59,21 @@ def download_bands(
 ) -> Dict[str, Path]:
     """Download selected ``bands`` from a STAC feature into ``out_dir``.
 
-    If ``source_dirs`` are provided, they are checked for existing band files
-    before downloading. Any found files are used directly without duplication.
+    ``source_dirs`` may contain additional directories to search for existing
+    files before downloading. Band files are saved with the pattern
+    ``<item_id>_<band>.tif`` so they can be uniquely identified across runs.
     """
 
     out_dir.mkdir(parents=True, exist_ok=True)
     extra_dirs = [Path(d) for d in (source_dirs or [])]
     paths: Dict[str, Path] = {}
+    item_id = feature.get("id", "item")
     for band in bands:
         asset = BAND_MAP.get(band)
         if asset is None or asset not in feature["assets"]:
             continue
 
-        filename = f"{band}.tif"
+        filename = f"{item_id}_{band}.tif"
         # Look for an existing file in the destination directory first and
         # then in any additional source directories.
         found: Optional[Path] = None
