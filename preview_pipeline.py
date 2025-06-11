@@ -846,7 +846,14 @@ def visualize_anomalies(anomalies, rrm, xi, yi, sigma, geojson_path, outdir):
 
 
 def create_interactive_map(
-    points, anomalies, bbox, outdir, include_data_vis=False, sentinel=None
+    points,
+    anomalies,
+    bbox,
+    outdir,
+    include_data_vis=False,
+    sentinel=None,
+    *,
+    include_full_sentinel=True,
 ):
     """Create an interactive map with pipeline results.
 
@@ -866,6 +873,9 @@ def create_interactive_map(
         present.
     sentinel : dict, optional
         Sentinel image paths and bounds returned by ``step_fetch_sentinel``.
+    include_full_sentinel : bool, default True
+        If ``True``, add the full Sentinel overlays (or their ``_web``
+        versions). If ``False``, only the cropped versions are added.
     """
     if anomalies is None and not Path(outdir).exists():
         print("No data for interactive map")
@@ -885,28 +895,30 @@ def create_interactive_map(
     if hillshade:
         image_files.append(str(hillshade[0].resolve()))
     image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("*_clean.png")))
-    image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("sentinel_*.png")))
-    image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("sentinel_*.jpg")))
+    if include_full_sentinel:
+        image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("sentinel_*.png")))
+        image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("sentinel_*.jpg")))
 
     # Prefer downsampled versions when available
-    def _swap_for_web(name: str) -> None:
-        web_jpg = outdir / f"{name}_web.jpg"
-        web_png = outdir / f"{name}_web.png"
-        target = None
-        if web_jpg.exists():
-            target = web_jpg
-        elif web_png.exists():
-            target = web_png
-        if target:
-            for ext in (".jpg", ".png"):
-                p = str((outdir / f"{name}{ext}").resolve())
-                if p in image_files:
-                    image_files.remove(p)
-            if str(target.resolve()) not in image_files:
-                image_files.append(str(target.resolve()))
+    if include_full_sentinel:
+        def _swap_for_web(name: str) -> None:
+            web_jpg = outdir / f"{name}_web.jpg"
+            web_png = outdir / f"{name}_web.png"
+            target = None
+            if web_jpg.exists():
+                target = web_jpg
+            elif web_png.exists():
+                target = web_png
+            if target:
+                for ext in (".jpg", ".png"):
+                    p = str((outdir / f"{name}{ext}").resolve())
+                    if p in image_files:
+                        image_files.remove(p)
+                if str(target.resolve()) not in image_files:
+                    image_files.append(str(target.resolve()))
 
-    _swap_for_web("sentinel_true_color")
-    _swap_for_web("sentinel_kndvi")
+        _swap_for_web("sentinel_true_color")
+        _swap_for_web("sentinel_kndvi")
 
     debug_dir = outdir / "debug"
     if debug_dir.exists():
@@ -936,7 +948,7 @@ def create_interactive_map(
                 ]
 
     # Sentinel bounds for full and cropped images
-    if sentinel and "bounds" in sentinel:
+    if include_full_sentinel and sentinel and "bounds" in sentinel:
         sb = sentinel["bounds"]
         full_bounds = [[sb[1], sb[0]], [sb[3], sb[2]]]
 
