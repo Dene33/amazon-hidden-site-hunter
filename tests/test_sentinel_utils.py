@@ -10,7 +10,13 @@ import rasterio as rio
 import requests
 from PIL import Image
 
-from sentinel_utils import bounds, compute_kndvi, read_band, search_sentinel2_item
+from sentinel_utils import (
+    bounds,
+    compute_kndvi,
+    read_band,
+    search_sentinel2_item,
+    download_bands,
+)
 
 
 def test_compute_kndvi_simple():
@@ -101,3 +107,32 @@ def test_resize_image(tmp_path: Path):
     assert resized.name == "orig_web.jpg"
     with Image.open(resized) as img:
         assert img.size == (50, 20)
+
+
+def test_download_bands_unique_names(tmp_path: Path) -> None:
+    class DummyResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def raise_for_status(self):
+            pass
+
+        def iter_content(self, chunk_size):
+            yield b"123"
+
+    feature = {
+        "id": "item123",
+        "bbox": [0, 1, 2, 3],
+        "properties": {"datetime": "2024-04-30T10:00:00Z"},
+        "assets": {"blue": {"href": "dummy"}},
+    }
+
+    with patch("sentinel_utils.requests.get", return_value=DummyResponse()):
+        paths = download_bands(feature, ["B02"], tmp_path)
+
+    expected = "item123_0.00000_1.00000_2.00000_3.00000_20240430_B02.tif"
+    assert paths["B02"].name == expected
+    assert paths["B02"].exists()

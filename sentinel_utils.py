@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+from datetime import datetime
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -50,23 +51,84 @@ BAND_MAP = {
 }
 
 
-def download_bands(feature: dict, bands: List[str], out_dir: Path) -> Dict[str, Path]:
-    """Download selected ``bands`` from a STAC feature into ``out_dir``."""
-    out_dir.mkdir(parents=True, exist_ok=True)
+def download_bands(
+    feature: dict,
+    bands: List[str],
+    out_dir: Path,
+    *,
+    source_dirs: Optional[List[Path]] = None,
+    download_dir: Optional[Path] = None,
+) -> Dict[str, Path]:
+    """Download selected ``bands`` from a STAC feature.
+
+    The resulting files are named using the pattern
+    ``<item_id>_<xmin>_<ymin>_<xmax>_<ymax>_<YYYYMMDD>_<band>.tif`` so they are
+    unique and reusable across experiments.
+
+    Parameters
+    ----------
+    out_dir : Path
+        Directory checked first for existing files. This matches the original
+        pipeline output folder.
+    source_dirs : list of Path, optional
+        Additional directories checked for previously downloaded data.
+    download_dir : Path, optional
+        Directory where new downloads are stored. Defaults to ``out_dir``.
+    """
+
+    out_dir = Path(out_dir)
+    download_dir = Path(download_dir or out_dir)
+    download_dir.mkdir(parents=True, exist_ok=True)
+
+    search_dirs = [out_dir]
+    for d in source_dirs or []:
+        p = Path(d)
+        if p not in search_dirs:
+            search_dirs.append(p)
+
     paths: Dict[str, Path] = {}
+    item_id = feature.get("id", "item")
+    bbox = feature.get("bbox", [])
+    bbox_str = (
+        f"_{bbox[0]:.5f}_{bbox[1]:.5f}_{bbox[2]:.5f}_{bbox[3]:.5f}"
+        if len(bbox) == 4
+        else ""
+    )
+    datetime_str = feature.get("properties", {}).get("datetime")
+    if datetime_str:
+        try:
+            dt = datetime.fromisoformat(datetime_str.replace("Z", "+00:00"))
+            date_part = f"_{dt.strftime('%Y%m%d')}"
+        except ValueError:
+            date_part = ""
+    else:
+        date_part = ""
     for band in bands:
         asset = BAND_MAP.get(band)
         if asset is None or asset not in feature["assets"]:
             continue
+
+        filename = f"{item_id}{bbox_str}{date_part}_{band}.tif"
+        found: Optional[Path] = None
+        for d in search_dirs:
+            p = Path(d) / filename
+            if p.exists():
+                found = p
+                break
+
+        if found is not None:
+            paths[band] = found
+            continue
+
         url = feature["assets"][asset]["href"]
-        local = out_dir / f"{band}.tif"
-        if not local.exists():
-            with requests.get(url, stream=True, timeout=60) as r:
-                r.raise_for_status()
-                with open(local, "wb") as f:
-                    for chunk in r.iter_content(1_048_576):
-                        f.write(chunk)
+        local = download_dir / filename
+        with requests.get(url, stream=True, timeout=60) as r:
+            r.raise_for_status()
+            with open(local, "wb") as f:
+                for chunk in r.iter_content(1_048_576):
+                    f.write(chunk)
         paths[band] = local
+
     return paths
 
 
