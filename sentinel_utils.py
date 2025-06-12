@@ -9,8 +9,11 @@ import numpy as np
 import rasterio as rio
 import requests
 from PIL import Image
+from rich.console import Console
 
 SEARCH_URL = "https://earth-search.aws.element84.com/v1/search"
+
+console = Console()
 
 
 def _to_rfc3339(date: str, end: bool = False) -> str:
@@ -117,11 +120,13 @@ def download_bands(
                 break
 
         if found is not None:
+            console.log(f"[green]Using existing band file → {found}")
             paths[band] = found
             continue
 
         url = feature["assets"][asset]["href"]
         local = download_dir / filename
+        console.log(f"Fetching {url} → {local}")
         with requests.get(url, stream=True, timeout=60) as r:
             r.raise_for_status()
             with open(local, "wb") as f:
