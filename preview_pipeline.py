@@ -854,8 +854,8 @@ def create_interactive_map(
     sentinel=None,
     *,
     include_full_sentinel=False,
-    include_full_srtm=True,
-    include_full_aw3d=True,
+    include_full_srtm=False,
+    include_full_aw3d=False,
 ):
     """Create an interactive map with pipeline results.
 
@@ -878,9 +878,9 @@ def create_interactive_map(
     include_full_sentinel : bool, default False
         If ``True``, add the full Sentinel overlays (or their ``_web``
         versions). If ``False``, only the cropped versions are added.
-    include_full_srtm : bool, default True
+    include_full_srtm : bool, default False
         If ``True``, include SRTM hillshade overlays when available.
-    include_full_aw3d : bool, default True
+    include_full_aw3d : bool, default False
         If ``True``, include AW3D30 hillshade overlays when available.
     """
     if anomalies is None and not Path(outdir).exists():

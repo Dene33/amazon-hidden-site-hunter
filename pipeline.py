@@ -487,8 +487,8 @@ def step_interactive_map(
     console.rule("[bold green]Create interactive map")
     include_data_vis = cfg.get("include_data_vis", False)
     include_full_sentinel = cfg.get("include_full_sentinel", False)
-    include_full_srtm = cfg.get("include_full_srtm", True)
-    include_full_aw3d = cfg.get("include_full_aw3d", True)
+    include_full_srtm = cfg.get("include_full_srtm", False)
+    include_full_aw3d = cfg.get("include_full_aw3d", False)
     create_interactive_map(
         points,
         anomalies,
