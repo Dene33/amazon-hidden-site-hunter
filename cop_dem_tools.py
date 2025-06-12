@@ -21,13 +21,13 @@ console = Console()
 COP_DEM_BASE = "https://copernicus-dem-90m.s3.amazonaws.com"
 # Global SRTM 30 m dataset hosted by OpenTopography
 SRTM_BASE = (
-    "https://opentopography.s3.sdsc.edu/raster/",
-    "SRTM_GL1/SRTM_GL1_srtm",
+    "https://opentopography.s3.sdsc.edu/raster/SRTM_GL1/"
+    "SRTM_GL1_srtm"
 )
 # JAXA ALOS World 3D 30 m DEM hosted by OpenTopography
 AW3D30_BASE = (
-    "https://opentopography.s3.sdsc.edu/raster/",
-    "AW3D30/release_v2012_single_format",
+    "https://opentopography.s3.sdsc.edu/raster/AW3D30/"
+    "release_v2012_single_format"
 )
 ESRI_WORLD_IMAGERY = (
     "https://services.arcgisonline.com/ArcGIS/rest/services/"
