@@ -53,6 +53,8 @@ def test_create_interactive_map_dem_overlays(tmp_path: Path) -> None:
 
     (_make_img(tmp_path / "1b_srtm_crop_hillshade.png"))
     (_make_img(tmp_path / "1c_aw3d30_crop_hillshade.png"))
+    (_make_img(tmp_path / "1b_srtm_mosaic_hillshade.png"))
+    (_make_img(tmp_path / "1c_aw3d30_mosaic_hillshade.png"))
 
     create_interactive_map(
         None,
@@ -65,3 +67,5 @@ def test_create_interactive_map_dem_overlays(tmp_path: Path) -> None:
     html = (tmp_path / "interactive_map.html").read_text()
     assert "1b_srtm_crop_hillshade" in html
     assert "1c_aw3d30_crop_hillshade" in html
+    assert "1b_srtm_mosaic_hillshade" not in html
+    assert "1c_aw3d30_mosaic_hillshade" not in html
