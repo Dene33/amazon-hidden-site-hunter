@@ -106,9 +106,13 @@ def step_fetch_sentinel(
         b02 = read_band(paths["B02"], bbox=sb)
         b03 = read_band(paths["B03"], bbox=sb)
         b04 = read_band(paths["B04"], bbox=sb)
-        save_true_color(b02, b03, b04, base / "sentinel_true_color.jpg", dpi=dpi)
-        console.log(f"[cyan]Wrote {base / 'sentinel_true_color.jpg'}")
-        resize_image(base / "sentinel_true_color.jpg")
+        tc_full = base / "sentinel_true_color.jpg"
+        if not tc_full.exists():
+            save_true_color(b02, b03, b04, tc_full, dpi=dpi)
+            console.log(f"[cyan]Wrote {tc_full}")
+            resize_image(tc_full)
+        else:
+            console.log(f"[cyan]Using existing {tc_full}")
 
         b02_c = read_band(paths["B02"], bbox=bbox)
         b03_c = read_band(paths["B03"], bbox=bbox)
@@ -122,9 +126,13 @@ def step_fetch_sentinel(
         red = read_band(paths["B04"], bbox=sb)
         nir = read_band(paths["B08"], bbox=sb)
         kndvi = compute_kndvi(red, nir)
-        save_index_png(kndvi, base / "sentinel_kndvi.png", dpi=dpi)
-        console.log(f"[cyan]Wrote {base / 'sentinel_kndvi.png'}")
-        resize_image(base / "sentinel_kndvi.png")
+        kndvi_full = base / "sentinel_kndvi.png"
+        if not kndvi_full.exists():
+            save_index_png(kndvi, kndvi_full, dpi=dpi)
+            console.log(f"[cyan]Wrote {kndvi_full}")
+            resize_image(kndvi_full)
+        else:
+            console.log(f"[cyan]Using existing {kndvi_full}")
 
         red_c = read_band(paths["B04"], bbox=bbox)
         nir_c = read_band(paths["B08"], bbox=bbox)
@@ -167,7 +175,12 @@ def step_fetch_data(
         crop = crop_to_bbox(mosaic, bbox, base / "cop90_crop.tif")
         dem_path = crop
         if cfg.get("visualize", True):
-            save_dem_png(mosaic, base / "1_copernicus_dem_mosaic_hillshade.png")
+            mosaic_png = base / "1_copernicus_dem_mosaic_hillshade.png"
+            if not mosaic_png.exists():
+                save_dem_png(mosaic, mosaic_png)
+                console.log(f"[cyan]Wrote {mosaic_png}")
+            else:
+                console.log(f"[cyan]Using existing {mosaic_png}")
             save_dem_png(crop, base / "1_copernicus_dem_crop_hillshade.png")
 
     if cfg.get("fetch_gedi_points", {}).get("enabled", True):
@@ -217,7 +230,12 @@ def step_fetch_srtm(
     crop = crop_to_bbox(mosaic, bbox, base / "srtm_crop.tif")
 
     if cfg.get("visualize", True):
-        save_dem_png(mosaic, base / "1b_srtm_mosaic_hillshade.png")
+        mosaic_png = base / "1b_srtm_mosaic_hillshade.png"
+        if not mosaic_png.exists():
+            save_dem_png(mosaic, mosaic_png)
+            console.log(f"[cyan]Wrote {mosaic_png}")
+        else:
+            console.log(f"[cyan]Using existing {mosaic_png}")
         save_dem_png(crop, base / "1b_srtm_crop_hillshade.png")
 
     return crop
@@ -247,7 +265,12 @@ def step_fetch_aw3d(
     crop = crop_to_bbox(mosaic, bbox, base / "aw3d30_crop.tif")
 
     if cfg.get("visualize", True):
-        save_dem_png(mosaic, base / "1c_aw3d30_mosaic_hillshade.png")
+        mosaic_png = base / "1c_aw3d30_mosaic_hillshade.png"
+        if not mosaic_png.exists():
+            save_dem_png(mosaic, mosaic_png)
+            console.log(f"[cyan]Wrote {mosaic_png}")
+        else:
+            console.log(f"[cyan]Using existing {mosaic_png}")
         save_dem_png(crop, base / "1c_aw3d30_crop_hillshade.png")
 
     return crop
