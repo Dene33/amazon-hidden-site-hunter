@@ -12,6 +12,8 @@ from shapely.geometry import Point
 
 from cop_dem_tools import (
     cop_tile_url,
+    srtm_tile_url,
+    aw3d_tile_url,
     mosaic_cop_tiles,
     crop_to_bbox,
     _dem_to_overlay,
@@ -44,6 +46,16 @@ def _create_tile(path: Path, value: float, bounds: tuple[float, float, float, fl
 def test_cop_tile_url():
     url = cop_tile_url(5.2, -3.7)
     assert "N05_00_W004_00" in url
+
+
+def test_srtm_tile_url():
+    url = srtm_tile_url(-1.3, 12.8)
+    assert url.endswith("S02E012.tif")
+
+
+def test_aw3d_tile_url():
+    url = aw3d_tile_url(-1.3, 12.8)
+    assert url.endswith("S002E012_DSM.tif")
 
 
 def test_mosaic_and_crop(tmp_path: Path):
