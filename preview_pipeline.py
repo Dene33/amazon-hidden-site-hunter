@@ -888,12 +888,30 @@ def create_interactive_map(
     outdir = Path(outdir)
     # Use only the clean images for overlays and include the DEM hillshade
     image_files = []
+
+    # Copernicus DEM overlays
     mosaic_png = list(outdir.glob("1_copernicus_dem_mosaic_hillshade*.png"))
     if mosaic_png:
         image_files.append(str(mosaic_png[0].resolve()))
     hillshade = list(outdir.glob("1_copernicus_dem_crop_hillshade*.png"))
     if hillshade:
         image_files.append(str(hillshade[0].resolve()))
+
+    # SRTM DEM overlays
+    srtm_mosaic = list(outdir.glob("1b_srtm_mosaic_hillshade*.png"))
+    if srtm_mosaic:
+        image_files.append(str(srtm_mosaic[0].resolve()))
+    srtm_crop = list(outdir.glob("1b_srtm_crop_hillshade*.png"))
+    if srtm_crop:
+        image_files.append(str(srtm_crop[0].resolve()))
+
+    # AW3D30 DEM overlays
+    aw3d_mosaic = list(outdir.glob("1c_aw3d30_mosaic_hillshade*.png"))
+    if aw3d_mosaic:
+        image_files.append(str(aw3d_mosaic[0].resolve()))
+    aw3d_crop = list(outdir.glob("1c_aw3d30_crop_hillshade*.png"))
+    if aw3d_crop:
+        image_files.append(str(aw3d_crop[0].resolve()))
     image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("*_clean.png")))
     if include_full_sentinel:
         image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("sentinel_*.png")))
@@ -947,6 +965,26 @@ def create_interactive_map(
                     [b.top, b.right],
                 ]
 
+    if srtm_mosaic:
+        srtm_tif = outdir / "srtm_mosaic.tif"
+        if srtm_tif.exists():
+            with rio.open(srtm_tif) as src:
+                b = src.bounds
+                image_bounds[str(Path(srtm_mosaic[0]).resolve())] = [
+                    [b.bottom, b.left],
+                    [b.top, b.right],
+                ]
+
+    if aw3d_mosaic:
+        aw3d_tif = outdir / "aw3d30_mosaic.tif"
+        if aw3d_tif.exists():
+            with rio.open(aw3d_tif) as src:
+                b = src.bounds
+                image_bounds[str(Path(aw3d_mosaic[0]).resolve())] = [
+                    [b.bottom, b.left],
+                    [b.top, b.right],
+                ]
+
     # Sentinel bounds for full and cropped images
     if include_full_sentinel and sentinel and "bounds" in sentinel:
         sb = sentinel["bounds"]
@@ -968,6 +1006,11 @@ def create_interactive_map(
         )
     if (outdir / "sentinel_kndvi_clean.png").exists():
         image_bounds[str((outdir / "sentinel_kndvi_clean.png").resolve())] = crop_bounds
+
+    if srtm_crop and srtm_crop[0].exists():
+        image_bounds[str(srtm_crop[0].resolve())] = crop_bounds
+    if aw3d_crop and aw3d_crop[0].exists():
+        image_bounds[str(aw3d_crop[0].resolve())] = crop_bounds
 
     map_obj = create_combined_map(
         arch_dataframes,

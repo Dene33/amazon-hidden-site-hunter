@@ -46,3 +46,22 @@ def test_create_interactive_map_full_option(tmp_path: Path) -> None:
     )
     html = (tmp_path / "interactive_map.html").read_text()
     assert "sentinel_true_color_web" in html
+
+
+def test_create_interactive_map_dem_overlays(tmp_path: Path) -> None:
+    bbox = (0.0, 0.0, 1.0, 1.0)
+
+    (_make_img(tmp_path / "1b_srtm_crop_hillshade.png"))
+    (_make_img(tmp_path / "1c_aw3d30_crop_hillshade.png"))
+
+    create_interactive_map(
+        None,
+        pd.DataFrame(),
+        bbox,
+        tmp_path,
+        include_full_sentinel=False,
+    )
+
+    html = (tmp_path / "interactive_map.html").read_text()
+    assert "1b_srtm_crop_hillshade" in html
+    assert "1c_aw3d30_crop_hillshade" in html
