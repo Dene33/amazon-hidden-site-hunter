@@ -55,7 +55,7 @@ def test_srtm_tile_url():
 
 def test_aw3d_tile_url():
     url = aw3d_tile_url(-1.3, 12.8)
-    assert url.endswith("S02E012_DSM.tif")
+    assert url.endswith("S002E012_DSM.tif")
 
 
 def test_mosaic_and_crop(tmp_path: Path):

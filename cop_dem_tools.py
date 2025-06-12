@@ -51,11 +51,15 @@ def srtm_tile_url(lat: float, lon: float) -> str:
 
 def aw3d_tile_url(lat: float, lon: float) -> str:
     """Return AW3D30 tile URL for the 1° × 1° cell containing ``lat``, ``lon``."""
+
     lat_sw, lon_sw = math.floor(lat), math.floor(lon)
     ns = "N" if lat_sw >= 0 else "S"
     ew = "E" if lon_sw >= 0 else "W"
-    lat_s = f"{abs(lat_sw):02d}"
+
+    # AW3D30 tiles use three-digit latitude codes
+    lat_s = f"{abs(lat_sw):03d}"
     lon_s = f"{abs(lon_sw):03d}"
+
     fname = f"ALPSMLC30_{ns}{lat_s}{ew}{lon_s}_DSM.tif"
     return f"{AW3D30_BASE}/{fname}"
 
