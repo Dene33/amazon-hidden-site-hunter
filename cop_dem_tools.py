@@ -21,8 +21,13 @@ console = Console()
 COP_DEM_BASE = "https://copernicus-dem-90m.s3.amazonaws.com"
 # Global SRTM 30 m dataset hosted by OpenTopography
 SRTM_BASE = (
-    "https://opentopography.s3.sdsc.edu/raster/"
-    "SRTM_GL1/SRTM_GL1_srtm"
+    "https://opentopography.s3.sdsc.edu/raster/",
+    "SRTM_GL1/SRTM_GL1_srtm",
+)
+# JAXA ALOS World 3D 30 m DEM hosted by OpenTopography
+AW3D30_BASE = (
+    "https://opentopography.s3.sdsc.edu/raster/",
+    "AW3D30/release_v2012_single_format",
 )
 ESRI_WORLD_IMAGERY = (
     "https://services.arcgisonline.com/ArcGIS/rest/services/"
@@ -48,6 +53,17 @@ def srtm_tile_url(lat: float, lon: float) -> str:
     lon_s = f"{abs(lon_sw):03d}"
     fname = f"{ns}{lat_s}{ew}{lon_s}.tif"
     return f"{SRTM_BASE}/{fname}"
+
+
+def aw3d_tile_url(lat: float, lon: float) -> str:
+    """Return AW3D30 tile URL for the 1° × 1° cell containing ``lat``, ``lon``."""
+    lat_sw, lon_sw = math.floor(lat), math.floor(lon)
+    ns = "N" if lat_sw >= 0 else "S"
+    ew = "E" if lon_sw >= 0 else "W"
+    lat_s = f"{abs(lat_sw):02d}"
+    lon_s = f"{abs(lon_sw):03d}"
+    fname = f"ALPSMLC30_{ns}{lat_s}{ew}{lon_s}_DSM.tif"
+    return f"{AW3D30_BASE}/{fname}"
 
 def fetch_cop_tiles(
     bbox: Tuple[float, float, float, float],
@@ -155,6 +171,57 @@ def fetch_srtm_tiles(
         raise RuntimeError("No SRTM tiles fetched; check bbox.")
     return tif_paths
 
+
+def fetch_aw3d_tiles(
+    bbox: Tuple[float, float, float, float],
+    out_dir: Path,
+    *,
+    source_dirs: List[Path] | None = None,
+    download_dir: Path | None = None,
+) -> List[Path]:
+    """Download AW3D30 tiles intersecting ``bbox``."""
+    xmin, ymin, xmax, ymax = bbox
+    out_dir = Path(out_dir)
+    download_dir = Path(download_dir or out_dir)
+    download_dir.mkdir(parents=True, exist_ok=True)
+
+    search_dirs = [out_dir]
+    for d in source_dirs or []:
+        p = Path(d)
+        if p not in search_dirs:
+            search_dirs.append(p)
+
+    lat_rng = range(math.floor(ymin), math.ceil(ymax) + 1)
+    lon_rng = range(math.floor(xmin), math.ceil(xmax) + 1)
+
+    tif_paths: List[Path] = []
+    for lat, lon in itertools.product(lat_rng, lon_rng):
+        url = aw3d_tile_url(lat, lon)
+        fname = Path(url).name
+        found: Optional[Path] = None
+        for d in search_dirs:
+            p = Path(d) / fname
+            if p.exists():
+                found = p
+                break
+        if found is not None:
+            console.log(f"[green]Using existing AW3D30 tile → {found}")
+            tif_paths.append(found)
+            continue
+
+        local = download_dir / fname
+        console.log(f"Fetching {url} → {local}")
+        with requests.get(url, stream=True, timeout=60) as r:
+            r.raise_for_status()
+            with open(local, "wb") as fp:
+                for chunk in r.iter_content(131_072):
+                    fp.write(chunk)
+        tif_paths.append(local)
+
+    if not tif_paths:
+        raise RuntimeError("No AW3D30 tiles fetched; check bbox.")
+    return tif_paths
+
 def mosaic_cop_tiles(tif_paths: List[Path], out_path: Path, bbox: Tuple[float, float, float, float]) -> Path:
     """Merge ``tif_paths`` into ``out_path``. The bounding box is stored as a tag."""
     if out_path.exists():
@@ -185,6 +252,11 @@ def mosaic_cop_tiles(tif_paths: List[Path], out_path: Path, bbox: Tuple[float, f
 
 def mosaic_srtm_tiles(tif_paths: List[Path], out_path: Path, bbox: Tuple[float, float, float, float]) -> Path:
     """Merge SRTM tiles using :func:`mosaic_cop_tiles`."""
+    return mosaic_cop_tiles(tif_paths, out_path, bbox)
+
+
+def mosaic_aw3d_tiles(tif_paths: List[Path], out_path: Path, bbox: Tuple[float, float, float, float]) -> Path:
+    """Merge AW3D30 tiles using :func:`mosaic_cop_tiles`."""
     return mosaic_cop_tiles(tif_paths, out_path, bbox)
 
 def crop_to_bbox(mosaic_path: Path, bbox: Tuple[float, float, float, float], out_path: Path) -> Path:

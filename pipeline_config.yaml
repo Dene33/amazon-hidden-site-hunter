@@ -29,6 +29,11 @@ srtm:
   visualize: true
   source_dirs: []
 
+aw3d:
+  enabled: false
+  visualize: true
+  source_dirs: []
+
 step2:
   enabled: true
   resolution: 0.0002695

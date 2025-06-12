@@ -13,6 +13,7 @@ from shapely.geometry import Point
 from cop_dem_tools import (
     cop_tile_url,
     srtm_tile_url,
+    aw3d_tile_url,
     mosaic_cop_tiles,
     crop_to_bbox,
     _dem_to_overlay,
@@ -50,6 +51,11 @@ def test_cop_tile_url():
 def test_srtm_tile_url():
     url = srtm_tile_url(-1.3, 12.8)
     assert url.endswith("S02E012.tif")
+
+
+def test_aw3d_tile_url():
+    url = aw3d_tile_url(-1.3, 12.8)
+    assert url.endswith("S02E012_DSM.tif")
 
 
 def test_mosaic_and_crop(tmp_path: Path):
