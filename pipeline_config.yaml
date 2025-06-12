@@ -56,6 +56,7 @@ step5:
   enabled: true
   include_data_vis: true
   include_full_sentinel: true
+  include_dems: true
 
 step6:
   enabled: true

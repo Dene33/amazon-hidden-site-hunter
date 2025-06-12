@@ -854,6 +854,7 @@ def create_interactive_map(
     sentinel=None,
     *,
     include_full_sentinel=False,
+    include_dems=True,
 ):
     """Create an interactive map with pipeline results.
 
@@ -876,6 +877,8 @@ def create_interactive_map(
     include_full_sentinel : bool, default False
         If ``True``, add the full Sentinel overlays (or their ``_web``
         versions). If ``False``, only the cropped versions are added.
+    include_dems : bool, default True
+        If ``True``, overlay DEM hillshade images when available.
     """
     if anomalies is None and not Path(outdir).exists():
         print("No data for interactive map")
@@ -897,17 +900,16 @@ def create_interactive_map(
     if hillshade:
         image_files.append(str(hillshade[0].resolve()))
 
-    # SRTM DEM overlays (use crop only)
     srtm_mosaic = list(outdir.glob("1b_srtm_mosaic_hillshade*.png"))
     srtm_crop = list(outdir.glob("1b_srtm_crop_hillshade*.png"))
-    if srtm_crop:
-        image_files.append(str(srtm_crop[0].resolve()))
-
-    # AW3D30 DEM overlays (use crop only)
     aw3d_mosaic = list(outdir.glob("1c_aw3d30_mosaic_hillshade*.png"))
     aw3d_crop = list(outdir.glob("1c_aw3d30_crop_hillshade*.png"))
-    if aw3d_crop:
-        image_files.append(str(aw3d_crop[0].resolve()))
+
+    if include_dems:
+        if srtm_crop:
+            image_files.append(str(srtm_crop[0].resolve()))
+        if aw3d_crop:
+            image_files.append(str(aw3d_crop[0].resolve()))
     image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("*_clean.png")))
     if include_full_sentinel:
         image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("sentinel_*.png")))
@@ -984,10 +986,11 @@ def create_interactive_map(
     if (outdir / "sentinel_kndvi_clean.png").exists():
         image_bounds[str((outdir / "sentinel_kndvi_clean.png").resolve())] = crop_bounds
 
-    if srtm_crop and srtm_crop[0].exists():
-        image_bounds[str(srtm_crop[0].resolve())] = crop_bounds
-    if aw3d_crop and aw3d_crop[0].exists():
-        image_bounds[str(aw3d_crop[0].resolve())] = crop_bounds
+    if include_dems:
+        if srtm_crop and srtm_crop[0].exists():
+            image_bounds[str(srtm_crop[0].resolve())] = crop_bounds
+        if aw3d_crop and aw3d_crop[0].exists():
+            image_bounds[str(aw3d_crop[0].resolve())] = crop_bounds
 
     map_obj = create_combined_map(
         arch_dataframes,
