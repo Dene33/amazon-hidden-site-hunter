@@ -71,11 +71,12 @@ def fetch_cop_tiles(
                 found = p
                 break
         if found is not None:
+            console.log(f"[green]Using existing DEM tile → {found}")
             tif_paths.append(found)
             continue
 
         local = download_dir / fname
-        console.log(f"Fetching {url}")
+        console.log(f"Fetching {url} → {local}")
         with requests.get(url, stream=True, timeout=60) as r:
             r.raise_for_status()
             with open(local, "wb") as fp:
