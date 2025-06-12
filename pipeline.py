@@ -167,7 +167,9 @@ def step_fetch_data(
         crop = crop_to_bbox(mosaic, bbox, base / "cop90_crop.tif")
         dem_path = crop
         if cfg.get("visualize", True):
-            save_dem_png(mosaic, base / "1_copernicus_dem_mosaic_hillshade.png")
+            mosaic_png = base / "1_copernicus_dem_mosaic_hillshade.png"
+            if not mosaic_png.exists():
+                save_dem_png(mosaic, mosaic_png)
             save_dem_png(crop, base / "1_copernicus_dem_crop_hillshade.png")
 
     if cfg.get("fetch_gedi_points", {}).get("enabled", True):
@@ -217,7 +219,9 @@ def step_fetch_srtm(
     crop = crop_to_bbox(mosaic, bbox, base / "srtm_crop.tif")
 
     if cfg.get("visualize", True):
-        save_dem_png(mosaic, base / "1b_srtm_mosaic_hillshade.png")
+        mosaic_png = base / "1b_srtm_mosaic_hillshade.png"
+        if not mosaic_png.exists():
+            save_dem_png(mosaic, mosaic_png)
         save_dem_png(crop, base / "1b_srtm_crop_hillshade.png")
 
     return crop
@@ -247,7 +251,9 @@ def step_fetch_aw3d(
     crop = crop_to_bbox(mosaic, bbox, base / "aw3d30_crop.tif")
 
     if cfg.get("visualize", True):
-        save_dem_png(mosaic, base / "1c_aw3d30_mosaic_hillshade.png")
+        mosaic_png = base / "1c_aw3d30_mosaic_hillshade.png"
+        if not mosaic_png.exists():
+            save_dem_png(mosaic, mosaic_png)
         save_dem_png(crop, base / "1c_aw3d30_crop_hillshade.png")
 
     return crop
