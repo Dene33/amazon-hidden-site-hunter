@@ -24,6 +24,11 @@ sentinel:
   dpi: 150
   source_dirs: []
 
+srtm:
+  enabled: false
+  visualize: true
+  source_dirs: []
+
 step2:
   enabled: true
   resolution: 0.0002695

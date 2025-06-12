@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Tuple, List
+from typing import Tuple, List, Optional
 import math
 import itertools
 import requests
@@ -19,6 +19,11 @@ from rasterio.windows import from_bounds, transform as window_transform
 console = Console()
 
 COP_DEM_BASE = "https://copernicus-dem-90m.s3.amazonaws.com"
+# Global SRTM 30 m dataset hosted by OpenTopography
+SRTM_BASE = (
+    "https://opentopography.s3.sdsc.edu/raster/"
+    "SRTM_GL1/SRTM_GL1_srtm"
+)
 ESRI_WORLD_IMAGERY = (
     "https://services.arcgisonline.com/ArcGIS/rest/services/"
     "World_Imagery/MapServer/tile/{z}/{y}/{x}"
@@ -32,6 +37,17 @@ def cop_tile_url(lat: float, lon: float) -> str:
     lon_s = f"{abs(lon_sw):03d}_00"
     stem = f"Copernicus_DSM_COG_30_{ns}{lat_s}_{ew}{lon_s}_DEM"
     return f"{COP_DEM_BASE}/{stem}/{stem}.tif"
+
+
+def srtm_tile_url(lat: float, lon: float) -> str:
+    """Return SRTM tile URL for the 1° × 1° cell containing ``lat``, ``lon``."""
+    lat_sw, lon_sw = math.floor(lat), math.floor(lon)
+    ns = "N" if lat_sw >= 0 else "S"
+    ew = "E" if lon_sw >= 0 else "W"
+    lat_s = f"{abs(lat_sw):02d}"
+    lon_s = f"{abs(lon_sw):03d}"
+    fname = f"{ns}{lat_s}{ew}{lon_s}.tif"
+    return f"{SRTM_BASE}/{fname}"
 
 def fetch_cop_tiles(
     bbox: Tuple[float, float, float, float],
@@ -88,6 +104,57 @@ def fetch_cop_tiles(
         raise RuntimeError("No Copernicus DEM tiles fetched; check bbox.")
     return tif_paths
 
+
+def fetch_srtm_tiles(
+    bbox: Tuple[float, float, float, float],
+    out_dir: Path,
+    *,
+    source_dirs: List[Path] | None = None,
+    download_dir: Path | None = None,
+) -> List[Path]:
+    """Download SRTM GL1 tiles intersecting ``bbox``."""
+    xmin, ymin, xmax, ymax = bbox
+    out_dir = Path(out_dir)
+    download_dir = Path(download_dir or out_dir)
+    download_dir.mkdir(parents=True, exist_ok=True)
+
+    search_dirs = [out_dir]
+    for d in source_dirs or []:
+        p = Path(d)
+        if p not in search_dirs:
+            search_dirs.append(p)
+
+    lat_rng = range(math.floor(ymin), math.ceil(ymax) + 1)
+    lon_rng = range(math.floor(xmin), math.ceil(xmax) + 1)
+
+    tif_paths: List[Path] = []
+    for lat, lon in itertools.product(lat_rng, lon_rng):
+        url = srtm_tile_url(lat, lon)
+        fname = Path(url).name
+        found: Optional[Path] = None
+        for d in search_dirs:
+            p = Path(d) / fname
+            if p.exists():
+                found = p
+                break
+        if found is not None:
+            console.log(f"[green]Using existing SRTM tile → {found}")
+            tif_paths.append(found)
+            continue
+
+        local = download_dir / fname
+        console.log(f"Fetching {url} → {local}")
+        with requests.get(url, stream=True, timeout=60) as r:
+            r.raise_for_status()
+            with open(local, "wb") as fp:
+                for chunk in r.iter_content(131_072):
+                    fp.write(chunk)
+        tif_paths.append(local)
+
+    if not tif_paths:
+        raise RuntimeError("No SRTM tiles fetched; check bbox.")
+    return tif_paths
+
 def mosaic_cop_tiles(tif_paths: List[Path], out_path: Path, bbox: Tuple[float, float, float, float]) -> Path:
     """Merge ``tif_paths`` into ``out_path``. The bounding box is stored as a tag."""
     if out_path.exists():
@@ -114,6 +181,11 @@ def mosaic_cop_tiles(tif_paths: List[Path], out_path: Path, bbox: Tuple[float, f
 
     console.log(f"[cyan]Wrote mosaic to {out_path}")
     return out_path
+
+
+def mosaic_srtm_tiles(tif_paths: List[Path], out_path: Path, bbox: Tuple[float, float, float, float]) -> Path:
+    """Merge SRTM tiles using :func:`mosaic_cop_tiles`."""
+    return mosaic_cop_tiles(tif_paths, out_path, bbox)
 
 def crop_to_bbox(mosaic_path: Path, bbox: Tuple[float, float, float, float], out_path: Path) -> Path:
     """Crop ``mosaic_path`` to ``bbox`` and save to ``out_path``."""

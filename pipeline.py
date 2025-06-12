@@ -15,7 +15,9 @@ from rich.console import Console
 from cop_dem_tools import (
     crop_to_bbox,
     fetch_cop_tiles,
+    fetch_srtm_tiles,
     mosaic_cop_tiles,
+    mosaic_srtm_tiles,
     save_anomaly_points_png,
     save_dem_png,
     save_residual_png,
@@ -187,6 +189,36 @@ def step_fetch_data(
             console.log(f"[cyan]Wrote {Path(base) / "2_gedi_points_clean.png"}")
 
     return dem_path, gedi
+
+
+def step_fetch_srtm(
+    cfg: Dict[str, Any],
+    bbox: Tuple[float, float, float, float],
+    base: Path,
+) -> Path | None:
+    """Fetch SRTM GL1 DEM tiles if enabled."""
+
+    if not cfg.get("enabled", False):
+        return None
+
+    console.rule("[bold green]Fetch SRTM DEM")
+    src_dirs = [Path(p) for p in cfg.get("source_dirs", [])]
+    out_dir = base
+    download_dir = src_dirs[0] if src_dirs else out_dir
+    tiles = fetch_srtm_tiles(
+        tuple(bbox),
+        ensure_dir(out_dir),
+        source_dirs=src_dirs,
+        download_dir=download_dir,
+    )
+    mosaic = mosaic_srtm_tiles(tiles, base / "srtm_mosaic.tif", bbox)
+    crop = crop_to_bbox(mosaic, bbox, base / "srtm_crop.tif")
+
+    if cfg.get("visualize", True):
+        save_dem_png(mosaic, base / "1b_srtm_mosaic_hillshade.png")
+        save_dem_png(crop, base / "1b_srtm_crop_hillshade.png")
+
+    return crop
 
 
 def step_bare_earth(
@@ -446,6 +478,9 @@ def run_pipeline(config: Dict[str, Any]):
         raise ValueError("bbox must be provided with 4 coordinates")
     # Step 1 – fetch data
     dem_path, gedi = step_fetch_data(config.get("step1", {}), bbox, base)
+
+    # Optional – fetch SRTM DEM
+    srtm_path = step_fetch_srtm(config.get("srtm", {}), bbox, base)
 
     # Step 1b – Sentinel-2 imagery
     sentinel_paths = step_fetch_sentinel(config.get("sentinel", {}), bbox, base)
