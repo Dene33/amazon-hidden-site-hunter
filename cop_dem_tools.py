@@ -257,24 +257,58 @@ def mosaic_aw3d_tiles(tif_paths: List[Path], out_path: Path, bbox: Tuple[float, 
     """Merge AW3D30 tiles using :func:`mosaic_cop_tiles`."""
     return mosaic_cop_tiles(tif_paths, out_path, bbox)
 
-def crop_to_bbox(mosaic_path: Path, bbox: Tuple[float, float, float, float], out_path: Path) -> Path:
-    """Crop ``mosaic_path`` to ``bbox`` and save to ``out_path``."""
+def crop_to_bbox(
+    mosaic_path: Path,
+    bbox: Tuple[float, float, float, float],
+    out_path: Path,
+    *,
+    resolution: float | None = None,
+) -> Path:
+    """Crop ``mosaic_path`` to ``bbox`` and save to ``out_path``.
+
+    Parameters
+    ----------
+    mosaic_path : Path
+        Source DEM mosaic in WGS84.
+    bbox : tuple
+        (xmin, ymin, xmax, ymax) coordinates in degrees.
+    out_path : Path
+        Destination path for the cropped DEM.
+    resolution : float, optional
+        Target pixel size in degrees. If provided, the DEM is resampled to this
+        resolution using bilinear resampling before saving.
+    """
     if out_path.exists():
         console.log(f"[green]Using existing cropped DEM → {out_path}")
         return out_path
 
-    geom = [mapping(box(*bbox))]
     with rio.open(mosaic_path) as src:
-        window = from_bounds(*bbox, transform=src.transform)
-        out_img = src.read(window=window)
-        out_transform = window_transform(window, src.transform)
-        # out_img, out_transform = mask(src, geom, crop=True)
-        out_meta = src.meta.copy()
-        out_meta.update(
-            height=out_img.shape[1],
-            width=out_img.shape[2],
-            transform=out_transform,
-        )
+        if resolution is None:
+            window = from_bounds(*bbox, transform=src.transform)
+            out_img = src.read(window=window)
+            out_transform = window_transform(window, src.transform)
+            out_meta = src.meta.copy()
+            out_meta.update(
+                height=out_img.shape[1],
+                width=out_img.shape[2],
+                transform=out_transform,
+            )
+        else:
+            width = max(1, int(round((bbox[2] - bbox[0]) / resolution)))
+            height = max(1, int(round((bbox[3] - bbox[1]) / resolution)))
+            transform = rio.transform.from_bounds(*bbox, width, height)
+            with rio.vrt.WarpedVRT(
+                src,
+                crs=src.crs,
+                transform=transform,
+                width=width,
+                height=height,
+                resampling=rio.enums.Resampling.bilinear,
+            ) as vrt:
+                out_img = vrt.read()
+                out_transform = vrt.transform
+                out_meta = src.meta.copy()
+                out_meta.update(height=height, width=width, transform=out_transform)
 
     with rio.open(out_path, "w", **out_meta) as dst:
         dst.write(out_img)

@@ -80,6 +80,15 @@ def test_mosaic_and_crop(tmp_path: Path):
     assert png.exists()
 
 
+def test_crop_to_bbox_resample(tmp_path: Path):
+    t = tmp_path / "tile.tif"
+    _create_tile(t, 5, (0, 0, 1, 1))
+    crop = crop_to_bbox(t, (0, 0, 1, 1), tmp_path / "crop.tif", resolution=0.005)
+    with rio.open(crop) as src:
+        assert src.width == 200
+        assert src.height == 200
+
+
 def test_dem_to_overlay(tmp_path: Path):
     t = tmp_path / "tile.tif"
     _create_tile(t, 5, (0, 0, 1, 1))
