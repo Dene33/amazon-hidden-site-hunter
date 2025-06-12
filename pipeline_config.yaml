@@ -56,7 +56,8 @@ step5:
   enabled: true
   include_data_vis: true
   include_full_sentinel: true
-  include_dems: true
+  include_full_srtm: true
+  include_full_aw3d: true
 
 step6:
   enabled: true

@@ -33,7 +33,8 @@ def test_create_interactive_map_full_option(tmp_path: Path) -> None:
         bbox,
         tmp_path,
         include_full_sentinel=False,
-        include_dems=True,
+        include_full_srtm=True,
+        include_full_aw3d=True,
     )
     html = (tmp_path / "interactive_map.html").read_text()
     assert "sentinel_true_color_web" not in html
@@ -44,7 +45,8 @@ def test_create_interactive_map_full_option(tmp_path: Path) -> None:
         bbox,
         tmp_path,
         include_full_sentinel=True,
-        include_dems=True,
+        include_full_srtm=True,
+        include_full_aw3d=True,
     )
     html = (tmp_path / "interactive_map.html").read_text()
     assert "sentinel_true_color_web" in html
@@ -64,7 +66,8 @@ def test_create_interactive_map_dem_overlays(tmp_path: Path) -> None:
         bbox,
         tmp_path,
         include_full_sentinel=False,
-        include_dems=True,
+        include_full_srtm=True,
+        include_full_aw3d=True,
     )
 
     html = (tmp_path / "interactive_map.html").read_text()
@@ -86,7 +89,8 @@ def test_create_interactive_map_dem_optional(tmp_path: Path) -> None:
         bbox,
         tmp_path,
         include_full_sentinel=False,
-        include_dems=False,
+        include_full_srtm=False,
+        include_full_aw3d=False,
     )
 
     html = (tmp_path / "interactive_map.html").read_text()
