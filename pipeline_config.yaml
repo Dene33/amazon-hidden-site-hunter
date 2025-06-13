@@ -42,6 +42,10 @@ step2:
 step3:
   enabled: true
   visualize: true
+  # Optional list of DEMs to subtract from the GEDI bare-earth surface.
+  # Specify by name: "cop", "srtm", "aw3d". Multiple entries will be averaged
+  # before subtraction.
+  dems: []
 
 step4:
   enabled: true
