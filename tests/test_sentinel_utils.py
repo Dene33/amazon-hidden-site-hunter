@@ -152,10 +152,17 @@ def test_mask_clouds_basic():
     scl = np.array([[4, 9], [3, 0]], dtype=np.float32)
     red = np.ones_like(scl)
     nir = np.ones_like(scl) * 2
-    red_m, nir_m = mask_clouds(scl, red, nir)
+    red_m, nir_m = mask_clouds(scl, red, nir, dilation=0)
     assert np.isnan(red_m[0, 1]) and np.isnan(nir_m[0, 1])
     assert np.isnan(red_m[1, 0]) and np.isnan(nir_m[1, 0])
     assert red_m[0, 0] == 1 and nir_m[0, 0] == 2
+
+
+def test_mask_clouds_dilation():
+    scl = np.array([[4, 9], [4, 4]], dtype=np.float32)
+    band = np.ones_like(scl)
+    masked, = mask_clouds(scl, band, fill_value=-9999, dilation=1)
+    assert masked[0, 0] == -9999
 
 
 def test_read_band_scale(tmp_path: Path):
@@ -164,3 +171,4 @@ def test_read_band_scale(tmp_path: Path):
     _create_raster(tif, arr, (0, 0, 2, 2))
     raw = read_band(tif, scale=1.0)
     assert np.array_equal(raw, arr)
+

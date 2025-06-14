@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+from scipy.ndimage import binary_dilation
 from datetime import datetime
 
 import matplotlib.pyplot as plt
@@ -192,7 +194,12 @@ def compute_kndvi(red: np.ndarray, nir: np.ndarray) -> np.ndarray:
 CLOUD_CLASSES = {3, 8, 9, 10, 11}
 
 
-def mask_clouds(scl: np.ndarray, *bands: np.ndarray, fill_value: float = np.nan) -> Tuple[np.ndarray, ...]:
+def mask_clouds(
+    scl: np.ndarray,
+    *bands: np.ndarray,
+    fill_value: float = np.nan,
+    dilation: int = 2,
+) -> Tuple[np.ndarray, ...]:
     """Mask cloud and shadow pixels in ``bands`` using the ``scl`` array.
 
     Parameters
@@ -204,6 +211,8 @@ def mask_clouds(scl: np.ndarray, *bands: np.ndarray, fill_value: float = np.nan)
         One or more arrays to mask in-place.
     fill_value : float, default ``np.nan``
         Value assigned to masked pixels.
+    dilation : int, default 2
+        Number of dilations applied to the mask to remove cloud edges.
 
     Returns
     -------
@@ -212,6 +221,8 @@ def mask_clouds(scl: np.ndarray, *bands: np.ndarray, fill_value: float = np.nan)
     """
 
     mask = np.isin(scl, list(CLOUD_CLASSES))
+    if dilation > 0:
+        mask = binary_dilation(mask, iterations=dilation)
     masked = []
     for arr in bands:
         m = arr.astype(np.float32, copy=True)
