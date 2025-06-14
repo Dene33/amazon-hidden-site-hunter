@@ -40,6 +40,7 @@ from preview_pipeline import create_interactive_map, visualize_gedi_points
 from sentinel_utils import (
     bounds,
     compute_kndvi,
+    compute_ndvi,
     download_bands,
     read_band,
     save_index_png,
@@ -129,8 +130,8 @@ def step_fetch_sentinel(
         red_l = read_band(paths_low["B04"], bbox=sb)
         nir_l = read_band(paths_low["B08"], bbox=sb)
 
-        ndvi_h = compute_ndvi(red_h, nir_h)
-        ndvi_l = compute_ndvi(red_l, nir_l)
+        ndvi_h = compute_kndvi(red_h, nir_h)
+        ndvi_l = compute_kndvi(red_l, nir_l)
         diff = ndvi_h - ndvi_l
         ratio = ndvi_h / (ndvi_l + 1e-6)
 
@@ -147,8 +148,8 @@ def step_fetch_sentinel(
         nir_h_c = read_band(paths_high["B08"], bbox=bbox)
         red_l_c = read_band(paths_low["B04"], bbox=bbox)
         nir_l_c = read_band(paths_low["B08"], bbox=bbox)
-        ndvi_h_c = compute_ndvi(red_h_c, nir_h_c)
-        ndvi_l_c = compute_ndvi(red_l_c, nir_l_c)
+        ndvi_h_c = compute_kndvi(red_h_c, nir_h_c)
+        ndvi_l_c = compute_kndvi(red_l_c, nir_l_c)
         diff_c = ndvi_h_c - ndvi_l_c
         ratio_c = ndvi_h_c / (ndvi_l_c + 1e-6)
 
