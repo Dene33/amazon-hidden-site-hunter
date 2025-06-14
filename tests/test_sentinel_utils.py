@@ -15,6 +15,7 @@ from sentinel_utils import (
     compute_ndvi,
     compute_kndvi,
     read_band,
+    mask_clouds,
     search_sentinel2_item,
     download_bands,
 )
@@ -145,3 +146,21 @@ def test_download_bands_unique_names(tmp_path: Path) -> None:
     expected = "item123_0.00000_1.00000_2.00000_3.00000_20240430_B02.tif"
     assert paths["B02"].name == expected
     assert paths["B02"].exists()
+
+
+def test_mask_clouds_basic():
+    scl = np.array([[4, 9], [3, 0]], dtype=np.float32)
+    red = np.ones_like(scl)
+    nir = np.ones_like(scl) * 2
+    red_m, nir_m = mask_clouds(scl, red, nir)
+    assert np.isnan(red_m[0, 1]) and np.isnan(nir_m[0, 1])
+    assert np.isnan(red_m[1, 0]) and np.isnan(nir_m[1, 0])
+    assert red_m[0, 0] == 1 and nir_m[0, 0] == 2
+
+
+def test_read_band_scale(tmp_path: Path):
+    arr = np.arange(4, dtype=np.float32).reshape(2, 2)
+    tif = tmp_path / "scl.tif"
+    _create_raster(tif, arr, (0, 0, 2, 2))
+    raw = read_band(tif, scale=1.0)
+    assert np.array_equal(raw, arr)

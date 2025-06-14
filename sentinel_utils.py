@@ -51,6 +51,8 @@ BAND_MAP = {
     "B03": "green",
     "B04": "red",
     "B08": "nir",
+    # Scene classification layer used for cloud masking
+    "SCL": "SCL",
 }
 
 
@@ -138,17 +140,32 @@ def download_bands(
 
 
 def read_band(
-    path: Path, bbox: Optional[Tuple[float, float, float, float]] = None
+    path: Path,
+    bbox: Optional[Tuple[float, float, float, float]] = None,
+    *,
+    scale: float = 1 / 10000.0,
 ) -> np.ndarray:
-    """Read a band and optionally crop it to a WGS84 ``bbox``."""
+    """Read a band and optionally crop it to a WGS84 ``bbox``.
+
+    Parameters
+    ----------
+    path : Path
+        Raster path.
+    bbox : tuple, optional
+        (xmin, ymin, xmax, ymax) to crop to in WGS84.
+    scale : float, default 1/10000.0
+        Multiplicative scale applied to the data. Set to 1 for integer
+        classification bands like ``SCL``.
+    """
+
     with rio.open(path) as src:
         if bbox is None:
-            arr = src.read(1).astype(np.float32) / 10000.0
+            arr = src.read(1).astype(np.float32)
         else:
             with rio.vrt.WarpedVRT(src, crs="EPSG:4326") as vrt:
                 window = rio.windows.from_bounds(*bbox, transform=vrt.transform)
-                arr = vrt.read(1, window=window).astype(np.float32) / 10000.0
-    return arr
+                arr = vrt.read(1, window=window).astype(np.float32)
+    return arr * scale
 
 
 def bounds(path: Path) -> Tuple[float, float, float, float]:
@@ -167,6 +184,40 @@ def compute_ndvi(red: np.ndarray, nir: np.ndarray) -> np.ndarray:
 def compute_kndvi(red: np.ndarray, nir: np.ndarray) -> np.ndarray:
     ndvi = compute_ndvi(red, nir)
     return np.tanh(np.square(ndvi))
+
+
+# Pixel values in the Sentinel-2 scene classification layer corresponding
+# to clouds or their shadows. These will be masked out before further
+# processing.
+CLOUD_CLASSES = {3, 8, 9, 10, 11}
+
+
+def mask_clouds(scl: np.ndarray, *bands: np.ndarray, fill_value: float = np.nan) -> Tuple[np.ndarray, ...]:
+    """Mask cloud and shadow pixels in ``bands`` using the ``scl`` array.
+
+    Parameters
+    ----------
+    scl : np.ndarray
+        Scene classification layer where cloud/shadow pixels have the
+        values defined in ``CLOUD_CLASSES``.
+    bands : np.ndarray
+        One or more arrays to mask in-place.
+    fill_value : float, default ``np.nan``
+        Value assigned to masked pixels.
+
+    Returns
+    -------
+    tuple of np.ndarray
+        The masked arrays in the same order as provided.
+    """
+
+    mask = np.isin(scl, list(CLOUD_CLASSES))
+    masked = []
+    for arr in bands:
+        m = arr.astype(np.float32, copy=True)
+        m[mask] = fill_value
+        masked.append(m)
+    return tuple(masked)
 
 
 def save_true_color(

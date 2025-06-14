@@ -43,6 +43,7 @@ from sentinel_utils import (
     compute_ndvi,
     download_bands,
     read_band,
+    mask_clouds,
     save_index_png,
     save_true_color,
     resize_image,
@@ -100,7 +101,7 @@ def step_fetch_sentinel(
         if item_high is None or item_low is None:
             console.log("[red]No Sentinel-2 images found for both periods")
             return {}
-        bands = ["B04", "B08"]
+        bands = ["B04", "B08", "SCL"]
         src_dirs = [Path(p) for p in cfg.get("source_dirs", [])]
         out_dir = base / "sentinel2"
         download_dir = src_dirs[0] if src_dirs else out_dir
@@ -129,6 +130,12 @@ def step_fetch_sentinel(
         nir_h = read_band(paths_high["B08"], bbox=sb)
         red_l = read_band(paths_low["B04"], bbox=sb)
         nir_l = read_band(paths_low["B08"], bbox=sb)
+        if "SCL" in paths_high:
+            scl_h = read_band(paths_high["SCL"], bbox=sb, scale=1.0)
+            red_h, nir_h = mask_clouds(scl_h, red_h, nir_h)
+        if "SCL" in paths_low:
+            scl_l = read_band(paths_low["SCL"], bbox=sb, scale=1.0)
+            red_l, nir_l = mask_clouds(scl_l, red_l, nir_l)
 
         ndvi_h = compute_kndvi(red_h, nir_h)
         ndvi_l = compute_kndvi(red_l, nir_l)
@@ -148,6 +155,12 @@ def step_fetch_sentinel(
         nir_h_c = read_band(paths_high["B08"], bbox=bbox)
         red_l_c = read_band(paths_low["B04"], bbox=bbox)
         nir_l_c = read_band(paths_low["B08"], bbox=bbox)
+        if "SCL" in paths_high:
+            scl_h_c = read_band(paths_high["SCL"], bbox=bbox, scale=1.0)
+            red_h_c, nir_h_c = mask_clouds(scl_h_c, red_h_c, nir_h_c)
+        if "SCL" in paths_low:
+            scl_l_c = read_band(paths_low["SCL"], bbox=bbox, scale=1.0)
+            red_l_c, nir_l_c = mask_clouds(scl_l_c, red_l_c, nir_l_c)
         ndvi_h_c = compute_kndvi(red_h_c, nir_h_c)
         ndvi_l_c = compute_kndvi(red_l_c, nir_l_c)
         diff_c = ndvi_h_c - ndvi_l_c
@@ -166,7 +179,7 @@ def step_fetch_sentinel(
     if item is None:
         console.log("[red]No Sentinel-2 images found")
         return {}
-    bands = cfg.get("bands", ["B02", "B03", "B04", "B08"])
+    bands = cfg.get("bands", ["B02", "B03", "B04", "B08", "SCL"])
     src_dirs = [Path(p) for p in cfg.get("source_dirs", [])]
     out_dir = base / "sentinel2"
     download_dir = src_dirs[0] if src_dirs else out_dir
@@ -187,6 +200,9 @@ def step_fetch_sentinel(
         b02 = read_band(paths["B02"], bbox=sb)
         b03 = read_band(paths["B03"], bbox=sb)
         b04 = read_band(paths["B04"], bbox=sb)
+        if "SCL" in paths:
+            scl = read_band(paths["SCL"], bbox=sb, scale=1.0)
+            b02, b03, b04 = mask_clouds(scl, b02, b03, b04)
         tc_full = base / "sentinel_true_color.jpg"
         if not tc_full.exists():
             save_true_color(b02, b03, b04, tc_full, dpi=dpi)
@@ -198,6 +214,9 @@ def step_fetch_sentinel(
         b02_c = read_band(paths["B02"], bbox=bbox)
         b03_c = read_band(paths["B03"], bbox=bbox)
         b04_c = read_band(paths["B04"], bbox=bbox)
+        if "SCL" in paths:
+            scl_c = read_band(paths["SCL"], bbox=bbox, scale=1.0)
+            b02_c, b03_c, b04_c = mask_clouds(scl_c, b02_c, b03_c, b04_c)
         save_true_color(
             b02_c, b03_c, b04_c, base / "sentinel_true_color_clean.png", dpi=dpi
         )
@@ -206,6 +225,9 @@ def step_fetch_sentinel(
     if cfg.get("visualize", True) and {"B04", "B08"}.issubset(paths):
         red = read_band(paths["B04"], bbox=sb)
         nir = read_band(paths["B08"], bbox=sb)
+        if "SCL" in paths:
+            scl = read_band(paths["SCL"], bbox=sb, scale=1.0)
+            red, nir = mask_clouds(scl, red, nir)
         kndvi = compute_kndvi(red, nir)
         kndvi_full = base / "sentinel_kndvi.png"
         if not kndvi_full.exists():
@@ -217,6 +239,9 @@ def step_fetch_sentinel(
 
         red_c = read_band(paths["B04"], bbox=bbox)
         nir_c = read_band(paths["B08"], bbox=bbox)
+        if "SCL" in paths:
+            scl_c = read_band(paths["SCL"], bbox=bbox, scale=1.0)
+            red_c, nir_c = mask_clouds(scl_c, red_c, nir_c)
         kndvi_c = compute_kndvi(red_c, nir_c)
         save_index_png(kndvi_c, base / "sentinel_kndvi_clean.png", dpi=dpi)
         console.log(f"[cyan]Wrote {base / 'sentinel_kndvi_clean.png'}")
