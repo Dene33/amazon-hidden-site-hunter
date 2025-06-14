@@ -440,40 +440,54 @@ def _grid_transform(xi: np.ndarray, yi: np.ndarray) -> rio.Affine:
                        width = xi.shape[1],
                        height = yi.shape[0])
 
-def residual_relief(bearth, dem_path: Path):
-    """
-    Subtract Copernicus DEM from the GEDI bare-earth surface, guaranteeing that
-    any pixel touched by nodata / outside the DEM is returned as NaN.
+def residual_relief(bearth, dem_paths: Path | List[Path]):
+    """Subtract DEM(s) from the GEDI bare-earth surface.
+
+    Parameters
+    ----------
+    bearth : tuple[np.ndarray, np.ndarray, np.ndarray]
+        ``(xi, yi, zi)`` grid describing the bare-earth surface.
+    dem_paths : Path or list[Path]
+        One or more DEM files to use.  When multiple paths are provided they
+        are averaged before subtracting from the GEDI surface.
     """
     xi, yi, zi = bearth
-    res_x = xi[0, 1] - xi[0, 0]          # ° lon / pixel
-    res_y = yi[1, 0] - yi[0, 0]          # ° lat / pixel (positive)
 
     # destination grid that matches (xi, yi)
-    # Align DEM pixels with the bare-earth grid so that their centres match
     dst_transform = _grid_transform(xi, yi)
 
+    if isinstance(dem_paths, (str, Path)):
+        dem_list = [Path(dem_paths)]
+    else:
+        dem_list = [Path(p) for p in dem_paths]
 
-    with rio.open(dem_path) as src:
-        nodata_val = src.nodata or -9999
+    dest_stack = []
+    for path in dem_list:
+        with rio.open(path) as src:
+            nodata_val = src.nodata or -9999
+            dest = np.full_like(zi, np.nan, dtype=np.float32)
+            reproject(
+                rio.band(src, 1),
+                dest,
+                src_transform=src.transform,
+                src_crs=src.crs,
+                dst_transform=dst_transform,
+                dst_crs="EPSG:4326",
+                resampling=Resampling.bilinear,
+                src_nodata=nodata_val,
+                dst_nodata=np.nan,
+                init_dest_nodata=True,
+            )
+            dest_stack.append(dest)
 
-        # start with an array of NaN so untouched cells stay invalid
-        dest = np.full_like(zi, np.nan, dtype=np.float32)
+    if len(dest_stack) == 1:
+        dem_arr = dest_stack[0]
+    else:
+        dem_arr = np.nanmean(np.stack(dest_stack), axis=0)
 
-        reproject(
-            rio.band(src, 1), dest,
-            src_transform=src.transform, src_crs=src.crs,
-            dst_transform=dst_transform, dst_crs="EPSG:4326",
-            resampling=Resampling.bilinear,
-            src_nodata=nodata_val,
-            dst_nodata=np.nan,           # any sample hit by nodata → NaN
-            init_dest_nodata=True        # ignore nodata in the average
-        )
-
-    # final residual, but only where *both* surfaces are valid
-    valid = (~np.isnan(zi)) & (~np.isnan(dest))
+    valid = (~np.isnan(zi)) & (~np.isnan(dem_arr))
     rrm = np.full_like(zi, np.nan, dtype=np.float32)
-    rrm[valid] = zi[valid] - dest[valid]
+    rrm[valid] = zi[valid] - dem_arr[valid]
 
     return rrm
 

@@ -305,12 +305,32 @@ def step_bare_earth(
     return xi, yi, zi
 
 
-def step_residual_relief(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
-    if not cfg.get("enabled", True) or bearth is None or dem_path is None:
+def step_residual_relief(
+    cfg: Dict[str, Any], bearth, dem_path: Path | None, base: Path
+):
+    if not cfg.get("enabled", True) or bearth is None:
         return None
+
+    dem_list = cfg.get("dems")
+    paths: List[Path] = []
+    if dem_list:
+        mapping = {
+            "cop": base / "cop90_crop.tif",
+            "srtm": base / "srtm_crop.tif",
+            "aw3d": base / "aw3d30_crop.tif",
+        }
+        for name in dem_list:
+            path = mapping.get(name)
+            if path is not None:
+                paths.append(path)
+    elif dem_path is not None:
+        paths = [dem_path]
+    else:
+        return None
+
     console.rule("[bold green]Residual relief")
     xi, yi, zi = bearth
-    rrm = residual_relief((xi, yi, zi), dem_path)
+    rrm = residual_relief((xi, yi, zi), paths if len(paths) > 1 else paths[0])
     if cfg.get("visualize", True):
         save_residual_png(
             rrm,
