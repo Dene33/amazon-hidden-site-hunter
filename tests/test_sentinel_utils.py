@@ -16,6 +16,8 @@ from sentinel_utils import (
     compute_kndvi,
     read_band,
     mask_clouds,
+    cloud_mask,
+    save_mask_png,
     search_sentinel2_item,
     download_bands,
 )
@@ -171,4 +173,16 @@ def test_read_band_scale(tmp_path: Path):
     _create_raster(tif, arr, (0, 0, 2, 2))
     raw = read_band(tif, scale=1.0)
     assert np.array_equal(raw, arr)
+
+
+def test_cloud_mask_and_save(tmp_path: Path):
+    scl = np.array([[0, 9], [4, 1]], dtype=np.float32)
+    mask = cloud_mask(scl, dilation=0)
+    assert mask.dtype == bool
+    assert mask[0, 1] and not mask[1, 0]
+    png = tmp_path / "mask.png"
+    save_mask_png(mask, png, dpi=123)
+    with Image.open(png) as img:
+        dpi_info = img.info.get("dpi")
+        assert dpi_info and round(dpi_info[0]) == 123 and round(dpi_info[1]) == 123
 

@@ -44,6 +44,8 @@ from sentinel_utils import (
     download_bands,
     read_band,
     mask_clouds,
+    cloud_mask,
+    save_mask_png,
     save_index_png,
     save_true_color,
     resize_image,
@@ -132,10 +134,18 @@ def step_fetch_sentinel(
         nir_l = read_band(paths_low["B08"], bbox=sb)
         if "SCL" in paths_high:
             scl_h = read_band(paths_high["SCL"], bbox=sb, scale=1.0)
+            mask_h = cloud_mask(scl_h)
+            save_mask_png(mask_h, base / "sentinel_cloud_mask_high.png", dpi=dpi)
             red_h, nir_h = mask_clouds(scl_h, red_h, nir_h)
+        else:
+            console.log("[yellow]No SCL band for high stress image")
         if "SCL" in paths_low:
             scl_l = read_band(paths_low["SCL"], bbox=sb, scale=1.0)
+            mask_l = cloud_mask(scl_l)
+            save_mask_png(mask_l, base / "sentinel_cloud_mask_low.png", dpi=dpi)
             red_l, nir_l = mask_clouds(scl_l, red_l, nir_l)
+        else:
+            console.log("[yellow]No SCL band for low stress image")
 
         ndvi_h = compute_kndvi(red_h, nir_h)
         ndvi_l = compute_kndvi(red_l, nir_l)
@@ -202,7 +212,11 @@ def step_fetch_sentinel(
         b04 = read_band(paths["B04"], bbox=sb)
         if "SCL" in paths:
             scl = read_band(paths["SCL"], bbox=sb, scale=1.0)
+            mask = cloud_mask(scl)
+            save_mask_png(mask, base / "sentinel_cloud_mask.png", dpi=dpi)
             b02, b03, b04 = mask_clouds(scl, b02, b03, b04)
+        else:
+            console.log("[yellow]No SCL band found")
         tc_full = base / "sentinel_true_color.jpg"
         if not tc_full.exists():
             save_true_color(b02, b03, b04, tc_full, dpi=dpi)
@@ -217,6 +231,8 @@ def step_fetch_sentinel(
         if "SCL" in paths:
             scl_c = read_band(paths["SCL"], bbox=bbox, scale=1.0)
             b02_c, b03_c, b04_c = mask_clouds(scl_c, b02_c, b03_c, b04_c)
+        else:
+            console.log("[yellow]No SCL band found")
         save_true_color(
             b02_c, b03_c, b04_c, base / "sentinel_true_color_clean.png", dpi=dpi
         )
@@ -228,6 +244,8 @@ def step_fetch_sentinel(
         if "SCL" in paths:
             scl = read_band(paths["SCL"], bbox=sb, scale=1.0)
             red, nir = mask_clouds(scl, red, nir)
+        else:
+            console.log("[yellow]No SCL band found")
         kndvi = compute_kndvi(red, nir)
         kndvi_full = base / "sentinel_kndvi.png"
         if not kndvi_full.exists():
@@ -242,6 +260,8 @@ def step_fetch_sentinel(
         if "SCL" in paths:
             scl_c = read_band(paths["SCL"], bbox=bbox, scale=1.0)
             red_c, nir_c = mask_clouds(scl_c, red_c, nir_c)
+        else:
+            console.log("[yellow]No SCL band found")
         kndvi_c = compute_kndvi(red_c, nir_c)
         save_index_png(kndvi_c, base / "sentinel_kndvi_clean.png", dpi=dpi)
         console.log(f"[cyan]Wrote {base / 'sentinel_kndvi_clean.png'}")

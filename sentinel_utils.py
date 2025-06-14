@@ -113,6 +113,8 @@ def download_bands(
     for band in bands:
         asset = BAND_MAP.get(band)
         if asset is None or asset not in feature["assets"]:
+            if band == "SCL":
+                console.log("[yellow]SCL band not available; skipping cloud mask")
             continue
 
         filename = f"{item_id}{bbox_str}{date_part}_{band}.tif"
@@ -188,6 +190,25 @@ def compute_kndvi(red: np.ndarray, nir: np.ndarray) -> np.ndarray:
     return np.tanh(np.square(ndvi))
 
 
+# ---------------------------------------------------------------------------
+# Cloud masking utilities
+# ---------------------------------------------------------------------------
+
+# Pixel values in the Sentinel-2 scene classification layer corresponding
+# to clouds or their shadows. These will be masked out before further
+# processing.
+CLOUD_CLASSES = {3, 8, 9, 10, 11}
+
+
+def cloud_mask(scl: np.ndarray, dilation: int = 2) -> np.ndarray:
+    """Return a boolean mask where ``True`` indicates cloud or shadow pixels."""
+
+    mask = np.isin(scl, list(CLOUD_CLASSES))
+    if dilation > 0:
+        mask = binary_dilation(mask, iterations=dilation)
+    return mask
+
+
 # Pixel values in the Sentinel-2 scene classification layer corresponding
 # to clouds or their shadows. These will be masked out before further
 # processing.
@@ -220,15 +241,20 @@ def mask_clouds(
         The masked arrays in the same order as provided.
     """
 
-    mask = np.isin(scl, list(CLOUD_CLASSES))
-    if dilation > 0:
-        mask = binary_dilation(mask, iterations=dilation)
+    mask = cloud_mask(scl, dilation=dilation)
     masked = []
     for arr in bands:
         m = arr.astype(np.float32, copy=True)
         m[mask] = fill_value
         masked.append(m)
     return tuple(masked)
+
+
+def save_mask_png(mask: np.ndarray, path: Path, dpi: int = 150) -> None:
+    """Save a binary cloud mask as an image."""
+
+    plt.imsave(path, mask.astype(float), cmap="gray", dpi=dpi)
+
 
 
 def save_true_color(
