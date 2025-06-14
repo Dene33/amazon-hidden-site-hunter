@@ -46,11 +46,35 @@ def search_sentinel2_item(
     return features[0] if features else None
 
 
+def search_sentinel2_items(
+    bbox: Tuple[float, float, float, float],
+    time_start: str,
+    time_end: str,
+    cloud_cover: int = 20,
+    limit: int = 10,
+) -> List[dict]:
+    """Return multiple Sentinel-2 L2A items intersecting ``bbox``."""
+    query = {
+        "collections": ["sentinel-2-l2a"],
+        "bbox": list(bbox),
+        "datetime": f"{_to_rfc3339(time_start)}/{_to_rfc3339(time_end, end=True)}",
+        "query": {"eo:cloud_cover": {"lt": cloud_cover}},
+        "limit": limit,
+    }
+    try:
+        r = requests.post(SEARCH_URL, json=query, timeout=60)
+        r.raise_for_status()
+    except requests.HTTPError:
+        return []
+    return r.json().get("features", [])
+
+
 BAND_MAP = {
     "B02": "blue",
     "B03": "green",
     "B04": "red",
     "B08": "nir",
+    "SCL": "scl",
 }
 
 
@@ -138,16 +162,23 @@ def download_bands(
 
 
 def read_band(
-    path: Path, bbox: Optional[Tuple[float, float, float, float]] = None
+    path: Path,
+    bbox: Optional[Tuple[float, float, float, float]] = None,
+    *,
+    scale: bool = True,
 ) -> np.ndarray:
     """Read a band and optionally crop it to a WGS84 ``bbox``."""
     with rio.open(path) as src:
         if bbox is None:
-            arr = src.read(1).astype(np.float32) / 10000.0
+            arr = src.read(1).astype(np.float32)
+            if scale:
+                arr /= 10000.0
         else:
             with rio.vrt.WarpedVRT(src, crs="EPSG:4326") as vrt:
                 window = rio.windows.from_bounds(*bbox, transform=vrt.transform)
-                arr = vrt.read(1, window=window).astype(np.float32) / 10000.0
+                arr = vrt.read(1, window=window).astype(np.float32)
+                if scale:
+                    arr /= 10000.0
     return arr
 
 
@@ -264,3 +295,34 @@ def resize_image(
         resized = img.resize(new_size, resample=resample)
         resized.save(dest)
     return dest
+
+
+def _mask_clouds(scl: np.ndarray, classes: Tuple[int, ...] = (3, 8, 9, 10, 11)) -> np.ndarray:
+    """Return a boolean mask where ``scl`` values indicate clouds."""
+    return np.isin(scl, classes)
+
+
+def composite_cloud_free(
+    items: List[Dict[str, Path]],
+    bands: List[str],
+    bbox: Tuple[float, float, float, float],
+    cloud_classes: Tuple[int, ...] = (3, 8, 9, 10, 11),
+) -> Dict[str, np.ndarray]:
+    """Combine multiple images masking clouds using the SCL band."""
+
+    result: Dict[str, np.ndarray] = {}
+    for band in bands:
+        stacks = []
+        for paths in items:
+            if band not in paths or "SCL" not in paths:
+                continue
+            arr = read_band(paths[band], bbox=bbox)
+            scl = read_band(paths["SCL"], bbox=bbox, scale=False)
+            mask = _mask_clouds(scl, classes=cloud_classes)
+            arr = arr.astype(float)
+            arr[mask] = np.nan
+            stacks.append(arr)
+        if stacks:
+            stack = np.stack(stacks, axis=0)
+            result[band] = np.nanmedian(stack, axis=0)
+    return result
