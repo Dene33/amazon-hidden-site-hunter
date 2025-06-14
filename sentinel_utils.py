@@ -159,8 +159,13 @@ def bounds(path: Path) -> Tuple[float, float, float, float]:
     return (b.left, b.bottom, b.right, b.top)
 
 
+def compute_ndvi(red: np.ndarray, nir: np.ndarray) -> np.ndarray:
+    """Compute the normalized difference vegetation index."""
+    return (nir - red) / (nir + red + 1e-6)
+
+
 def compute_kndvi(red: np.ndarray, nir: np.ndarray) -> np.ndarray:
-    ndvi = (nir - red) / (nir + red + 1e-6)
+    ndvi = compute_ndvi(red, nir)
     return np.tanh(np.square(ndvi))
 
 

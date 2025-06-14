@@ -12,6 +12,7 @@ from PIL import Image
 
 from sentinel_utils import (
     bounds,
+    compute_ndvi,
     compute_kndvi,
     read_band,
     search_sentinel2_item,
@@ -26,6 +27,14 @@ def test_compute_kndvi_simple():
     assert kndvi.shape == red.shape
     # Ensure values are between -1 and 1
     assert np.all(kndvi >= -1) and np.all(kndvi <= 1)
+
+
+def test_compute_ndvi_simple():
+    red = np.array([[0.2, 0.3], [0.2, 0.1]])
+    nir = np.array([[0.6, 0.5], [0.4, 0.2]])
+    ndvi = compute_ndvi(red, nir)
+    assert ndvi.shape == red.shape
+    assert np.all(ndvi >= -1) and np.all(ndvi <= 1)
 
 
 def test_search_sentinel_rfc3339():

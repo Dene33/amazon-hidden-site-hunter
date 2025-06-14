@@ -17,8 +17,12 @@ step1:
 
 sentinel:
   enabled: false
-  time_start: '2024-01-01'
-  time_end: '2024-12-31'
+  high_stress:
+    time_start: '2023-09-01'
+    time_end: '2023-10-31'
+  low_stress:
+    time_start: '2022-03-01'
+    time_end: '2022-04-30'
   max_cloud: 20
   visualize: true
   dpi: 150

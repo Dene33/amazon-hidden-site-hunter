@@ -79,6 +79,86 @@ def step_fetch_sentinel(
     if not cfg.get("enabled", True):
         return {}
     console.rule("[bold green]Fetch Sentinel-2 imagery")
+
+    high_cfg = cfg.get("high_stress")
+    low_cfg = cfg.get("low_stress")
+
+    if high_cfg and low_cfg:
+        item_high = search_sentinel2_item(
+            bbox,
+            high_cfg.get("time_start"),
+            high_cfg.get("time_end"),
+            cfg.get("max_cloud", 20),
+        )
+        item_low = search_sentinel2_item(
+            bbox,
+            low_cfg.get("time_start"),
+            low_cfg.get("time_end"),
+            cfg.get("max_cloud", 20),
+        )
+        if item_high is None or item_low is None:
+            console.log("[red]No Sentinel-2 images found for both periods")
+            return {}
+        bands = ["B04", "B08"]
+        src_dirs = [Path(p) for p in cfg.get("source_dirs", [])]
+        out_dir = base / "sentinel2"
+        download_dir = src_dirs[0] if src_dirs else out_dir
+        paths_high = download_bands(
+            item_high,
+            bands,
+            ensure_dir(out_dir),
+            source_dirs=src_dirs,
+            download_dir=download_dir,
+        )
+        paths_low = download_bands(
+            item_low,
+            bands,
+            ensure_dir(out_dir),
+            source_dirs=src_dirs,
+            download_dir=download_dir,
+        )
+        if not paths_high or not paths_low:
+            console.log("[red]No Sentinel-2 bands downloaded")
+            return {}
+
+        sb = bounds(next(iter(paths_high.values())))
+        dpi = cfg.get("dpi", 150)
+
+        red_h = read_band(paths_high["B04"], bbox=sb)
+        nir_h = read_band(paths_high["B08"], bbox=sb)
+        red_l = read_band(paths_low["B04"], bbox=sb)
+        nir_l = read_band(paths_low["B08"], bbox=sb)
+
+        ndvi_h = compute_ndvi(red_h, nir_h)
+        ndvi_l = compute_ndvi(red_l, nir_l)
+        diff = ndvi_h - ndvi_l
+        ratio = ndvi_h / (ndvi_l + 1e-6)
+
+        save_index_png(ndvi_h, base / "sentinel_ndvi_high.png", dpi=dpi)
+        save_index_png(ndvi_l, base / "sentinel_ndvi_low.png", dpi=dpi)
+        save_index_png(diff, base / "sentinel_ndvi_diff.png", dpi=dpi)
+        save_index_png(ratio, base / "sentinel_ndvi_ratio.png", dpi=dpi)
+        resize_image(base / "sentinel_ndvi_high.png")
+        resize_image(base / "sentinel_ndvi_low.png")
+        resize_image(base / "sentinel_ndvi_diff.png")
+        resize_image(base / "sentinel_ndvi_ratio.png")
+
+        red_h_c = read_band(paths_high["B04"], bbox=bbox)
+        nir_h_c = read_band(paths_high["B08"], bbox=bbox)
+        red_l_c = read_band(paths_low["B04"], bbox=bbox)
+        nir_l_c = read_band(paths_low["B08"], bbox=bbox)
+        ndvi_h_c = compute_ndvi(red_h_c, nir_h_c)
+        ndvi_l_c = compute_ndvi(red_l_c, nir_l_c)
+        diff_c = ndvi_h_c - ndvi_l_c
+        ratio_c = ndvi_h_c / (ndvi_l_c + 1e-6)
+
+        save_index_png(ndvi_h_c, base / "sentinel_ndvi_high_clean.png", dpi=dpi)
+        save_index_png(ndvi_l_c, base / "sentinel_ndvi_low_clean.png", dpi=dpi)
+        save_index_png(diff_c, base / "sentinel_ndvi_diff_clean.png", dpi=dpi)
+        save_index_png(ratio_c, base / "sentinel_ndvi_ratio_clean.png", dpi=dpi)
+
+        return {"bounds": sb}
+
     item = search_sentinel2_item(
         bbox, cfg.get("time_start"), cfg.get("time_end"), cfg.get("max_cloud", 20)
     )
