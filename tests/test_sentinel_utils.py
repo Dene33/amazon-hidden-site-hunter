@@ -16,6 +16,8 @@ from sentinel_utils import (
     compute_kndvi,
     read_band,
     mask_clouds,
+    apply_mask,
+    hollstein_cloud_mask,
     cloud_mask,
     save_mask_png,
     search_sentinel2_item,
@@ -185,4 +187,28 @@ def test_cloud_mask_and_save(tmp_path: Path):
     with Image.open(png) as img:
         dpi_info = img.info.get("dpi")
         assert dpi_info and round(dpi_info[0]) == 123 and round(dpi_info[1]) == 123
+
+
+def test_hollstein_cloud_mask_basic():
+    mask = hollstein_cloud_mask(
+        b01=np.array([[0.4, 0.2]], dtype=np.float32),
+        b02=np.array([[0.1, 0.1]], dtype=np.float32),
+        b03=np.array([[0.35, 0.1]], dtype=np.float32),
+        b05=np.array([[0.2, 0.1]], dtype=np.float32),
+        b06=np.array([[0.1, 0.1]], dtype=np.float32),
+        b07=np.array([[0.0, 0.0]], dtype=np.float32),
+        b8a=np.array([[0.2, 0.05]], dtype=np.float32),
+        b09=np.array([[0.1, 0.1]], dtype=np.float32),
+        b11=np.array([[0.2, 0.1]], dtype=np.float32),
+        dilation=0,
+    )
+    assert mask.shape == (1, 2)
+    assert mask[0, 0]
+
+
+def test_apply_mask():
+    mask = np.array([[True, False]])
+    arr = np.array([[1.0, 2.0]])
+    masked, = apply_mask(mask, arr, fill_value=-9999)
+    assert masked[0, 0] == -9999 and masked[0, 1] == 2.0
 

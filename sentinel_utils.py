@@ -49,12 +49,20 @@ def search_sentinel2_item(
 
 
 BAND_MAP = {
+    "B01": "coastal",
     "B02": "blue",
     "B03": "green",
     "B04": "red",
+    "B05": "rededge1",
+    "B06": "rededge2",
+    "B07": "rededge3",
     "B08": "nir",
+    "B8A": "nir08",
+    "B09": "nir09",
+    "B11": "swir16",
+    "B12": "swir22",
     # Scene classification layer used for cloud masking
-    "SCL": "SCL",
+    "SCL": "scl",
 }
 
 
@@ -209,10 +217,74 @@ def cloud_mask(scl: np.ndarray, dilation: int = 2) -> np.ndarray:
     return mask
 
 
-# Pixel values in the Sentinel-2 scene classification layer corresponding
-# to clouds or their shadows. These will be masked out before further
-# processing.
-CLOUD_CLASSES = {3, 8, 9, 10, 11}
+def hollstein_cloud_mask(
+    b01: np.ndarray,
+    b02: np.ndarray,
+    b03: np.ndarray,
+    b05: np.ndarray,
+    b06: np.ndarray,
+    b07: np.ndarray,
+    b8a: np.ndarray,
+    b09: np.ndarray,
+    b11: np.ndarray,
+    b10: Optional[np.ndarray] = None,
+    *,
+    dilation: int = 2,
+) -> np.ndarray:
+    """Approximate cloud mask using the Hollstein algorithm.
+
+    Parameters
+    ----------
+    b01, b02, b03, b05, b06, b07, b8a, b09, b11 : np.ndarray
+        Reflectance bands scaled between 0 and 1.
+    b10 : np.ndarray, optional
+        Cirrus band. If ``None``, zeros are used instead.
+    dilation : int, default 2
+        Number of dilations applied to the mask.
+    """
+
+    if b10 is None:
+        b10 = np.zeros_like(b01)
+
+    cond_a = b03 < 0.319
+    cond_b = b8a < 0.166
+    cond_c = b03 - b07 < 0.027
+    cond_d = b09 - b11 < -0.097
+
+    shadow1 = cond_a & cond_b & cond_c & ~cond_d
+    shadow2 = cond_a & cond_b & ~cond_c & (b09 - b11 >= 0.021)
+
+    cond_e = cond_a & ~cond_b & (b02 / (b10 + 1e-6) < 14.689)
+    cirrus1 = cond_e & ~(b02 / (b09 + 1e-6) < 0.788)
+
+    cond_f = ~cond_a
+    cond_g = b05 / (b11 + 1e-6) < 4.33
+    cond_h = b11 - b10 < 0.255
+    cond_i = b06 - b07 < -0.016
+
+    cloud1 = cond_f & cond_g & cond_h & cond_i
+    cirrus2 = cond_f & cond_g & cond_h & ~cond_i
+    cloud2 = cond_f & cond_g & ~cond_h & ~(b01 < 0.3)
+
+    shadow3 = cond_f & ~cond_g & (b03 < 0.525) & ~((b01 / (b05 + 1e-6)) < 1.184)
+
+    mask = shadow1 | shadow2 | cirrus1 | cloud1 | cirrus2 | cloud2 | shadow3
+
+    if dilation > 0:
+        mask = binary_dilation(mask, iterations=dilation)
+
+    return mask
+
+
+def apply_mask(mask: np.ndarray, *bands: np.ndarray, fill_value: float = np.nan) -> Tuple[np.ndarray, ...]:
+    """Apply ``mask`` to ``bands``, returning masked copies."""
+
+    masked = []
+    for arr in bands:
+        m = arr.astype(np.float32, copy=True)
+        m[mask] = fill_value
+        masked.append(m)
+    return tuple(masked)
 
 
 def mask_clouds(
@@ -242,12 +314,7 @@ def mask_clouds(
     """
 
     mask = cloud_mask(scl, dilation=dilation)
-    masked = []
-    for arr in bands:
-        m = arr.astype(np.float32, copy=True)
-        m[mask] = fill_value
-        masked.append(m)
-    return tuple(masked)
+    return apply_mask(mask, *bands, fill_value=fill_value)
 
 
 def save_mask_png(mask: np.ndarray, path: Path, dpi: int = 150) -> None:
