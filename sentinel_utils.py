@@ -231,18 +231,25 @@ def bounds(path: Path) -> Tuple[float, float, float, float]:
 
 
 def compute_ndvi(red: np.ndarray, nir: np.ndarray) -> np.ndarray:
-    """Compute the normalized difference vegetation index.
-
-    Pixels equal to ``FILL_VALUE`` are ignored by returning NaNs in the
-    resulting array.
-    """
-
+    """Compute NDVI while honouring a nodata fill value."""
     red = red.astype(np.float32)
     nir = nir.astype(np.float32)
-    mask = (red == FILL_VALUE) | (nir == FILL_VALUE)
-    red = np.where(mask, np.nan, red)
-    nir = np.where(mask, np.nan, nir)
-    return (nir - red) / (nir + red + 1e-6)
+
+    # Build a mask of bad pixels
+    nodata = (red == FILL_VALUE) | (nir == FILL_VALUE)
+
+    denom = nir + red
+    zero_denom = denom == 0
+
+    # Combine the two masks and prepare a result output
+    mask = nodata | zero_denom
+    ndvi = np.full_like(red, np.nan, dtype=np.float32)
+
+    # Safe division only on valid pixels
+    valid = ~mask
+    ndvi[valid] = (nir[valid] - red[valid]) / denom[valid]
+
+    return ndvi
 
 
 def compute_kndvi(red: np.ndarray, nir: np.ndarray) -> np.ndarray:
@@ -260,7 +267,7 @@ def compute_kndvi(red: np.ndarray, nir: np.ndarray) -> np.ndarray:
 CLOUD_CLASSES = {3, 8, 9, 10, 11}
 
 
-def cloud_mask(scl: np.ndarray, dilation: int = 2) -> np.ndarray:
+def cloud_mask(scl: np.ndarray, dilation: int = 0) -> np.ndarray:
     """Return a boolean mask where ``True`` indicates cloud or shadow pixels."""
 
     mask = np.isin(scl, list(CLOUD_CLASSES))
@@ -414,44 +421,37 @@ def save_index_png(
     arr: np.ndarray,
     path: Path,
     cmap: str = "RdYlGn",
-    quality: int = 95,
+    vmin: float | None = None,
+    vmax: float | None = None,
     dpi: int = 150,
+    nodata_rgba: tuple[int, int, int, int] = (0, 0, 0, 0),   # transparent
 ) -> None:
-    """Save an index array as an image.
+    """Save a float array (any range) using a Matplotlib colormap."""
 
-    Parameters
-    ----------
-    arr
-        Array with values scaled between 0 and 1.
-    path
-        Destination ``.png`` or ``.jpg`` file.
-    cmap
-        Matplotlib colormap name.
-    quality
-        JPEG quality if saving to that format.
-    dpi
-        Resolution metadata stored in the output image.
-    """
+    import matplotlib.pyplot as plt
+    from PIL import Image
+    import numpy as np
 
-    if not np.isfinite(arr).any():
-        arr = np.zeros_like(arr)
-        vmin, vmax = 0.0, 1.0
-    else:
-        vmin = float(np.nanmin(arr))
-        vmax = float(np.nanmax(arr))
-        if vmin == vmax:
-            vmax = vmin + 1e-6
+    # If caller did not provide limits, deduce them (ignoring NaNs)
+    if vmin is None or vmax is None:
+        finite = arr[np.isfinite(arr)]
+        if finite.size == 0:
+            vmin, vmax = 0.0, 1.0
+        else:
+            vmin, vmax = float(finite.min()), float(finite.max())
+            if vmin == vmax:
+                vmax = vmin + 1e-6
 
-    arr = np.clip(arr, vmin, vmax)
+    norm = plt.Normalize(vmin=vmin, vmax=vmax, clip=True)
+    cm   = plt.get_cmap(cmap)
+    rgba = cm(norm(arr))             # shape (H,W,4), float 0‑1
 
-    if path.suffix.lower() in {".jpg", ".jpeg"}:
-        norm = plt.Normalize(vmin=vmin, vmax=vmax)
-        cm = plt.get_cmap(cmap)
-        rgba = cm(norm(arr))
-        img = Image.fromarray((rgba[:, :, :3] * 255).astype(np.uint8))
-        img.save(path, quality=quality, dpi=(dpi, dpi))
-    else:
-        plt.imsave(path, arr, cmap=cmap, dpi=dpi)
+    # Paint nodata
+    nodata_mask = ~np.isfinite(arr)
+    rgba[nodata_mask] = np.array(nodata_rgba) / 255.0
+
+    img = Image.fromarray((rgba * 255).astype(np.uint8))
+    img.save(path, dpi=(dpi, dpi))
 
 
 def resize_image(
