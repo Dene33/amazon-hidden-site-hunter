@@ -41,6 +41,8 @@ from sentinel_utils import (
     bounds,
     compute_kndvi,
     compute_ndvi,
+    compute_ndmi,
+    compute_msi,
     download_bands,
     read_band,
     read_band_like,
@@ -150,10 +152,18 @@ def step_fetch_sentinel(
             return apply_mask(mask, arr)[0] if visualise else arr
 
         red, nir = (_masked("B04", sb), _masked("B08", sb))
-        b02, b03, b04 = (_masked("B02", sb), _masked("B03", sb), _masked("B04", sb))
+        b02, b03, b04 = (
+            _masked("B02", sb),
+            _masked("B03", sb),
+            _masked("B04", sb),
+        )
+        swir = _masked("B11", sb) if "B11" in paths else None
 
         # ---- save true colour & kNDVI for whole scene
         kndvi = compute_kndvi(red, nir)
+        if swir is not None:
+            ndmi = compute_ndmi(nir, swir)
+            msi = compute_msi(nir, swir)
 
         if visualise and save_full:
             tc_full = base / f"sentinel_true_color_{label}.jpg"
@@ -170,6 +180,17 @@ def step_fetch_sentinel(
                 console.log(f"[cyan]Resized {ndvi_full}")
             console.log(f"[cyan]Wrote {ndvi_full}")
 
+            if swir is not None:
+                msi_full = base / f"sentinel_msi_{label}.png"
+                ndmi_full = base / f"sentinel_ndmi_{label}.png"
+                save_index_png(msi, msi_full, dpi=dpi)
+                save_index_png(ndmi, ndmi_full, dpi=dpi)
+                if resize_vis:
+                    resize_image(msi_full)
+                    resize_image(ndmi_full)
+                    console.log(f"[cyan]Resized {msi_full} and {ndmi_full}")
+                console.log(f"[cyan]Wrote {msi_full} and {ndmi_full}")
+
         # ---- same products but strictly inside user bbox (“_clean”)
         if visualise:
             mask_c = _mask_for(bbox)
@@ -182,12 +203,22 @@ def step_fetch_sentinel(
             save_true_color(b02_c, b03_c, b04_c, tc_clean, dpi=dpi, gain=5)
             console.log(f"[cyan]Wrote {tc_clean}")
 
-            red_c  = apply_mask(mask_c, read_band(paths["B04"], bbox=bbox))[0]
-            nir_c  = apply_mask(mask_c, read_band(paths["B08"], bbox=bbox))[0]
+            red_c = apply_mask(mask_c, read_band(paths["B04"], bbox=bbox))[0]
+            nir_c = apply_mask(mask_c, read_band(paths["B08"], bbox=bbox))[0]
             kndvi_c = compute_kndvi(red_c, nir_c)
             ndvi_clean = base / f"sentinel_kndvi_{label}_clean.png"
             save_index_png(kndvi_c, ndvi_clean, dpi=dpi)
             console.log(f"[cyan]Wrote {ndvi_clean}")
+
+            if "B11" in paths:
+                swir_c = apply_mask(mask_c, read_band(paths["B11"], bbox=bbox))[0]
+                ndmi_c = compute_ndmi(nir_c, swir_c)
+                msi_c = compute_msi(nir_c, swir_c)
+                msi_clean = base / f"sentinel_msi_{label}_clean.png"
+                ndmi_clean = base / f"sentinel_ndmi_{label}_clean.png"
+                save_index_png(msi_c, msi_clean, dpi=dpi)
+                save_index_png(ndmi_c, ndmi_clean, dpi=dpi)
+                console.log(f"[cyan]Wrote {msi_clean} and {ndmi_clean}")
 
         return kndvi
 
