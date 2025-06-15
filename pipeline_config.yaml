@@ -25,6 +25,8 @@ sentinel:
     time_end: '2022-04-30'
   max_cloud: 5
   visualize: true
+  resize_vis: false
+  save_full: false
   dpi: 150
   source_dirs: []
 

@@ -463,8 +463,7 @@ def create_combined_map(
         folium.Rectangle(
             bounds=[[ymin, xmin], [ymax, xmax]],
             color="red",
-            fill=False,
-            fill_color="yellow",
+            fill=False,            
             fill_opacity=0,
             tooltip="Area of Interest",
         ).add_to(m)
