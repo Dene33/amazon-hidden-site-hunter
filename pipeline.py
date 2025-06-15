@@ -85,24 +85,24 @@ def step_fetch_sentinel(
     base: Path,
 ) -> Dict[str, Any]:
     """
-    Download Sentinel‑2 imagery and (optionally) produce cloud masks,
-    true‑colour previews, kNDVI products and two‑date comparison layers.
+    Download Sentinel-2 imagery and (optionally) produce cloud masks,
+    true-colour previews, kNDVI products and two-date comparison layers.
 
-    Returns at least {"bounds": <scene‑bounds>}.  Extra keys are harmless.
+    Returns at least {"bounds": <scene-bounds>}.  Extra keys are harmless.
     """
     if not cfg.get("enabled", True):
         return {}
 
-    console.rule("[bold green]Fetch Sentinel‑2 imagery")
+    console.rule("[bold green]Fetch Sentinel-2 imagery")
 
-    # ----------------------------------------------------------------– set‑up
+    # ----------------------------------------------------------------– set-up
     dpi        = cfg.get("dpi", 150)
     visualise  = cfg.get("visualize", True)
     out_dir    = (base / "sentinel2").resolve()
     source_dirs = [Path(p) for p in cfg.get("source_dirs", [])]
     dl_dir      = source_dirs[0] if source_dirs else out_dir
     resize_vis = cfg.get("resize_vis", False)
-    save_full = cfg.get("save_full", False)
+    save_full  = cfg.get("save_full", False)          # <-- now used!
 
     high_cfg, low_cfg = cfg.get("high_stress"), cfg.get("low_stress")
     has_two_periods   = bool(high_cfg and low_cfg)
@@ -123,7 +123,7 @@ def step_fetch_sentinel(
                 scl = read_band_like(paths["SCL"], paths["B04"],
                                      bbox=area_bbox, scale=1.0)
                 return cloud_mask(scl)
-            # Hollstein fall‑back
+            # Hollstein fall-back
             needed = ["B01", "B02", "B03", "B05", "B06",
                       "B07", "B8A", "B09", "B11"]
             extras = [
@@ -132,16 +132,17 @@ def step_fetch_sentinel(
             ]
             return hollstein_cloud_mask(*extras)
 
-        if visualise:
-            mask = _mask_for(sb)
+        # We always need the mask & arrays for index maths,
+        # but we only *save* the “full scene” visualisations if save_full=True
+        mask = _mask_for(sb)
+
+        if visualise and save_full:
             mask_path = base / f"sentinel_cloud_mask_{label}.png"
             save_mask_png(mask, mask_path, dpi=dpi)
             console.log(
                 f"[cyan]Wrote {mask_path} "
                 f"({np.count_nonzero(mask):,} masked px)"
             )
-        else:
-            mask = _mask_for(sb)  # still needed for indices
 
         # ---- prepare RED/NIR + RGB
         def _masked(band: str, area_bbox):
@@ -149,23 +150,19 @@ def step_fetch_sentinel(
             return apply_mask(mask, arr)[0] if visualise else arr
 
         red, nir = (_masked("B04", sb), _masked("B08", sb))
-        b02, b03, b04 = (
-            _masked("B02", sb),
-            _masked("B03", sb),
-            _masked("B04", sb),
-        )
+        b02, b03, b04 = (_masked("B02", sb), _masked("B03", sb), _masked("B04", sb))
 
         # ---- save true colour & kNDVI for whole scene
-        if visualise:
+        kndvi = compute_kndvi(red, nir)
+
+        if visualise and save_full:
             tc_full = base / f"sentinel_true_color_{label}.jpg"
-            save_true_color(b02, b03, b04, tc_full, dpi=dpi)
+            save_true_color(b02, b03, b04, tc_full, dpi=dpi,)
             if resize_vis:
                 resize_image(tc_full)
                 console.log(f"[cyan]Resized {tc_full}")
             console.log(f"[cyan]Wrote {tc_full}")
 
-        kndvi = compute_kndvi(red, nir)
-        if visualise:
             ndvi_full = base / f"sentinel_kndvi_{label}.png"
             save_index_png(kndvi, ndvi_full, dpi=dpi)
             if resize_vis:
@@ -181,14 +178,12 @@ def step_fetch_sentinel(
                 apply_mask(mask_c, read_band(paths["B03"], bbox=bbox))[0],
                 apply_mask(mask_c, read_band(paths["B04"], bbox=bbox))[0],
             )
-            tc_clean = base / f"sentinel_true_color_{label}_clean.png"
-            save_true_color(b02_c, b03_c, b04_c, tc_clean, dpi=dpi)
+            tc_clean = base / f"sentinel_true_color_{label}_clean.jpg"
+            save_true_color(b02_c, b03_c, b04_c, tc_clean, dpi=dpi, gain=5)
             console.log(f"[cyan]Wrote {tc_clean}")
 
-            red_c  = apply_mask(mask_c,
-                                read_band(paths["B04"], bbox=bbox))[0]
-            nir_c  = apply_mask(mask_c,
-                                read_band(paths["B08"], bbox=bbox))[0]
+            red_c  = apply_mask(mask_c, read_band(paths["B04"], bbox=bbox))[0]
+            nir_c  = apply_mask(mask_c, read_band(paths["B08"], bbox=bbox))[0]
             kndvi_c = compute_kndvi(red_c, nir_c)
             ndvi_clean = base / f"sentinel_kndvi_{label}_clean.png"
             save_index_png(kndvi_c, ndvi_clean, dpi=dpi)
@@ -244,8 +239,8 @@ def step_fetch_sentinel(
         ndvi_hi = _make_products(paths_hi, "high")
         ndvi_lo = _make_products(paths_lo, "low")
 
-        # ---- two‑date comparisons
-        if visualise:
+        # ---- two-date comparisons
+        if visualise and save_full:
             diff   = ndvi_hi - ndvi_lo
             ratio  = ndvi_hi / (ndvi_lo + 1e-6)
             diff_p = base / "sentinel_ndvi_diff.png"
@@ -256,17 +251,16 @@ def step_fetch_sentinel(
                 resize_image(diff_p)
                 resize_image(ratio_p)
                 console.log(f"[cyan]Resized {diff_p} and {ratio_p}")
-            console.log("[cyan]Wrote two‑date NDVI diff / ratio")
+            console.log("[cyan]Wrote two-date NDVI diff / ratio")
 
         return result
 
-    # ------------------------------- single‑period fall‑back (unchanged API)
+    # ------------------------------- single-period fall-back (unchanged API)
     item = search_sentinel2_item(cfg)
     if item is None:
-        console.log("[red]No Sentinel‑2 images found")
+        console.log("[red]No Sentinel-2 images found")
         return {}
 
-    # paths = _download_bands(item, "single")
     bands = _wanted_bands(item)
     paths = download_bands(
         item,
@@ -275,17 +269,16 @@ def step_fetch_sentinel(
         source_dirs=source_dirs,
         download_dir=dl_dir,
     )
-    
+
     if not paths:
-        console.log("[red]No Sentinel‑2 bands downloaded for **single**")
-        return {}
-    
-    sb = bounds(next(iter(paths_hi.values())))
-    if not paths:
+        console.log("[red]No Sentinel-2 bands downloaded for **single**")
         return {}
 
-    _make_products(paths, "single")          # obeys `visualize`
-    return paths
+    sb = bounds(next(iter(paths.values())))     
+    paths["bounds"] = sb
+
+    _make_products(paths, "single")             # obeys `visualize` + `save_full`
+    return {"bounds": sb}
 
 
 def step_fetch_data(

@@ -18,7 +18,7 @@ SEARCH_URL = "https://earth-search.aws.element84.com/v1/search"
 
 console = Console()
 
-FILL_VALUE = -9999.0
+FILL_VALUE = np.nan
 
 
 def _to_rfc3339(date: str, end: bool = False) -> str:
@@ -388,33 +388,54 @@ def save_true_color(
     b03: np.ndarray,
     b04: np.ndarray,
     path: Path,
+    *,
     gain: float = 2.5,
     quality: int = 95,
     dpi: int = 150,
 ) -> None:
-    """Save a true color RGB image to ``path``.
+    """
+    Save a true-colour image, painting all no-data / cloudy pixels neon-purple.
 
     Parameters
     ----------
-    b02, b03, b04
-        Reflectance bands scaled between 0 and 1.
-    path
-        Destination file. ``.jpg`` or ``.png`` are supported.
-    gain
-        Multiplicative factor applied before clipping.
-    quality
-        JPEG quality if saving to that format.
-    dpi
-        Resolution metadata stored in the output image.
+    b02, b03, b04 : np.ndarray
+        Reflectance bands, already on 0‒1 scale except for FILL_VALUE.
+    path : Path
+        Destination file (.jpg or .png supported).
+    gain : float, default 2.5
+        Contrast multiplier before clipping.
+    quality : int, default 95
+        JPEG quality when saving as JPEG.
+    dpi : int, default 150
+        Resolution metadata written to the file.
     """
+    # --- stack channels (R=B04, G=B03, B=B02) and apply gain
+    rgb_raw = np.stack([b04, b03, b02], axis=-1)
 
-    rgb = np.stack([b04, b03, b02], axis=-1) * gain
-    rgb = np.clip(rgb, 0, 1)
-    if path.suffix.lower() in {".jpg", ".jpeg"}:
-        img = Image.fromarray((rgb * 255).astype(np.uint8))
-        img.save(path, quality=quality, dpi=(dpi, dpi))
-    else:
-        plt.imsave(path, rgb, dpi=dpi)
+    # --- mask: any band is non-finite **or** equals the fill value
+    # mask_no_data = (
+    #     ~np.isfinite(rgb_raw).all(axis=-1)
+    #     | (rgb_raw == FILL_VALUE).any(axis=-1)
+    # )
+
+    mask_no_data = (rgb_raw == FILL_VALUE).any(axis=-1)
+
+    # --- convert to display domain
+    rgb = np.clip(rgb_raw * gain, 0.0, 1.0)
+
+    # --- paint masked pixels neon-purple (R=1, G=0, B=1)
+    rgb[mask_no_data] = (1.0, 0.0, 1.0)
+
+    # --- ensure no NaNs/Infs sneak through
+    rgb = np.nan_to_num(rgb, nan=1.0, posinf=1.0, neginf=0.0)
+
+    # --- write with Pillow (PNG comes out *without* gAMA/sRGB chunks)
+    img = Image.fromarray((rgb * 255).astype(np.uint8), mode="RGB")
+
+    # Save as JPEG
+    path_jpg = path.with_suffix(".jpg")
+
+    img.save(path_jpg, quality=quality, dpi=(dpi, dpi))
 
 
 def save_index_png(
@@ -427,10 +448,6 @@ def save_index_png(
     nodata_rgba: tuple[int, int, int, int] = (0, 0, 0, 0),   # transparent
 ) -> None:
     """Save a float array (any range) using a Matplotlib colormap."""
-
-    import matplotlib.pyplot as plt
-    from PIL import Image
-    import numpy as np
 
     # If caller did not provide limits, deduce them (ignoring NaNs)
     if vmin is None or vmax is None:
@@ -451,8 +468,6 @@ def save_index_png(
     rgba[nodata_mask] = np.array(nodata_rgba) / 255.0
 
     img = Image.fromarray((rgba * 255).astype(np.uint8))
-    if path.suffix.lower() in {".jpg", ".jpeg"} and img.mode == "RGBA":
-        img = img.convert("RGB")
     img.save(path, dpi=(dpi, dpi))
 
 

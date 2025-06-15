@@ -908,11 +908,17 @@ def create_interactive_map(
     aw3d_mosaic = list(outdir.glob("1c_aw3d30_mosaic_hillshade*.png"))
     aw3d_crop = list(outdir.glob("1c_aw3d30_crop_hillshade*.png"))
 
-    if include_full_srtm and srtm_crop:
+    if include_full_srtm and srtm_mosaic:
+        image_files.append(str(srtm_mosaic[0].resolve()))
+    if include_full_aw3d and aw3d_mosaic:
+        image_files.append(str(aw3d_mosaic[0].resolve()))
+    if srtm_crop:
         image_files.append(str(srtm_crop[0].resolve()))
-    if include_full_aw3d and aw3d_crop:
+    if aw3d_crop:
         image_files.append(str(aw3d_crop[0].resolve()))
     image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("*_clean.png")))
+    image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("*_clean.jpg")))
+
     if include_full_sentinel:
         image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("sentinel_*.png")))
         image_files.extend(str(p.resolve()) for p in sorted(outdir.glob("sentinel_*.jpg")))
@@ -985,10 +991,10 @@ def create_interactive_map(
         _add_bound("sentinel_ndvi_diff")
         _add_bound("sentinel_ndvi_ratio")
     crop_bounds = [[bbox[1], bbox[0]], [bbox[3], bbox[2]]]
-    if (outdir / "sentinel_true_color_clean.png").exists():
-        image_bounds[str((outdir / "sentinel_true_color_clean.png").resolve())] = (
-            crop_bounds
-        )
+    if (outdir / "sentinel_true_color_high_clean.jpg").exists():
+        image_bounds[str((outdir / "sentinel_true_color_high_clean.jpg").resolve())] = crop_bounds
+    if (outdir / "sentinel_true_color_low_clean.jpg").exists():
+        image_bounds[str((outdir / "sentinel_true_color_low_clean.jpg").resolve())] = crop_bounds
     if (outdir / "sentinel_kndvi_clean.png").exists():
         image_bounds[str((outdir / "sentinel_kndvi_clean.png").resolve())] = crop_bounds
     if (outdir / "sentinel_ndvi_diff_clean.png").exists():
