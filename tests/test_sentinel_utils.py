@@ -189,6 +189,19 @@ def test_read_band_like(tmp_path: Path):
     assert resampled.shape == arr_ref.shape
 
 
+def test_read_band_like_bbox(tmp_path: Path):
+    arr_ref = np.arange(16, dtype=np.float32).reshape(4, 4)
+    arr = np.arange(4, dtype=np.float32).reshape(2, 2)
+    ref = tmp_path / "ref.tif"
+    other = tmp_path / "other.tif"
+    _create_raster(ref, arr_ref, (0, 0, 4, 4))
+    _create_raster(other, arr, (0, 0, 4, 4))
+    bbox = (1, 1, 3, 3)
+    cropped = read_band_like(other, ref, bbox=bbox, scale=1.0)
+    expected = read_band(ref, bbox=bbox, scale=1.0)
+    assert cropped.shape == expected.shape
+
+
 def test_cloud_mask_and_save(tmp_path: Path):
     scl = np.array([[0, 9], [4, 1]], dtype=np.float32)
     mask = cloud_mask(scl, dilation=0)

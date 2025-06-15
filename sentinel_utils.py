@@ -196,17 +196,15 @@ def read_band_like(
     """
 
     with rio.open(reference) as ref:
-        if bbox is None:
-            with rio.vrt.WarpedVRT(ref, crs="EPSG:4326") as vrt_ref:
+        with rio.vrt.WarpedVRT(ref, crs="EPSG:4326") as vrt_ref:
+            if bbox is None:
+                window = rio.windows.Window(0, 0, vrt_ref.width, vrt_ref.height)
                 transform = vrt_ref.transform
-                width = vrt_ref.width
-                height = vrt_ref.height
-        else:
-            with rio.vrt.WarpedVRT(ref, crs="EPSG:4326") as vrt_ref:
+            else:
                 window = rio.windows.from_bounds(*bbox, transform=vrt_ref.transform)
                 transform = vrt_ref.window_transform(window)
-                width = int(window.width)
-                height = int(window.height)
+            width = round(window.width)
+            height = round(window.height)
 
     with rio.open(path) as src:
         with rio.vrt.WarpedVRT(
