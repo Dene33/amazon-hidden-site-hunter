@@ -421,9 +421,19 @@ def save_index_png(
         Resolution metadata stored in the output image.
     """
 
-    arr = np.clip(arr, np.nanmin(arr), np.nanmax(arr))
+    if not np.isfinite(arr).any():
+        arr = np.zeros_like(arr)
+        vmin, vmax = 0.0, 1.0
+    else:
+        vmin = float(np.nanmin(arr))
+        vmax = float(np.nanmax(arr))
+        if vmin == vmax:
+            vmax = vmin + 1e-6
+
+    arr = np.clip(arr, vmin, vmax)
+
     if path.suffix.lower() in {".jpg", ".jpeg"}:
-        norm = plt.Normalize(vmin=float(np.nanmin(arr)), vmax=float(np.nanmax(arr)))
+        norm = plt.Normalize(vmin=vmin, vmax=vmax)
         cm = plt.get_cmap(cmap)
         rgba = cm(norm(arr))
         img = Image.fromarray((rgba[:, :, :3] * 255).astype(np.uint8))

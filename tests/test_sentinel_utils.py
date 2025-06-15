@@ -21,6 +21,7 @@ from sentinel_utils import (
     hollstein_cloud_mask,
     cloud_mask,
     save_mask_png,
+    save_index_png,
     search_sentinel2_item,
     download_bands,
 )
@@ -237,3 +238,23 @@ def test_apply_mask():
     masked, = apply_mask(mask, arr, fill_value=-9999)
     assert masked[0, 0] == -9999 and masked[0, 1] == 2.0
 
+
+def test_save_index_png_all_nan(tmp_path: Path):
+    arr = np.full((2, 2), np.nan, dtype=np.float32)
+    out = tmp_path / "nan.png"
+    save_index_png(arr, out, dpi=120)
+    assert out.exists()
+    with Image.open(out) as img:
+        dpi_info = img.info.get("dpi")
+        assert dpi_info and round(dpi_info[0]) == 120
+
+
+def test_save_index_png_constant(tmp_path: Path):
+    arr = np.ones((2, 2), dtype=np.float32) * 0.5
+    out = tmp_path / "const.png"
+    save_index_png(arr, out, dpi=180)
+    with Image.open(out) as img:
+        dpi_info = img.info.get("dpi")
+        assert dpi_info and round(dpi_info[0]) == 180
+        pix = np.array(img)
+        assert pix.var() >= 0
