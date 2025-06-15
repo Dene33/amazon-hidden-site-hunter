@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from scipy.ndimage import binary_dilation
+from rasterio.enums import Resampling
 from datetime import datetime
 
 import matplotlib.pyplot as plt
@@ -177,6 +178,47 @@ def read_band(
             with rio.vrt.WarpedVRT(src, crs="EPSG:4326") as vrt:
                 window = rio.windows.from_bounds(*bbox, transform=vrt.transform)
                 arr = vrt.read(1, window=window).astype(np.float32)
+    return arr * scale
+
+
+def read_band_like(
+    path: Path,
+    reference: Path,
+    bbox: Optional[Tuple[float, float, float, float]] = None,
+    *,
+    scale: float = 1 / 10000.0,
+    resampling: Resampling = Resampling.nearest,
+) -> np.ndarray:
+    """Read ``path`` resampled to match ``reference``.
+
+    This ensures the output array has the same shape and spatial resolution as
+    ``reference`` for the given ``bbox``.
+    """
+
+    with rio.open(reference) as ref:
+        if bbox is None:
+            with rio.vrt.WarpedVRT(ref, crs="EPSG:4326") as vrt_ref:
+                transform = vrt_ref.transform
+                width = vrt_ref.width
+                height = vrt_ref.height
+        else:
+            with rio.vrt.WarpedVRT(ref, crs="EPSG:4326") as vrt_ref:
+                window = rio.windows.from_bounds(*bbox, transform=vrt_ref.transform)
+                transform = vrt_ref.window_transform(window)
+                width = int(window.width)
+                height = int(window.height)
+
+    with rio.open(path) as src:
+        with rio.vrt.WarpedVRT(
+            src,
+            crs="EPSG:4326",
+            transform=transform,
+            width=width,
+            height=height,
+            resampling=resampling,
+        ) as vrt:
+            arr = vrt.read(1).astype(np.float32)
+
     return arr * scale
 
 

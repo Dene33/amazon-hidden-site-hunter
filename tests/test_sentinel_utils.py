@@ -15,6 +15,7 @@ from sentinel_utils import (
     compute_ndvi,
     compute_kndvi,
     read_band,
+    read_band_like,
     mask_clouds,
     apply_mask,
     hollstein_cloud_mask,
@@ -175,6 +176,17 @@ def test_read_band_scale(tmp_path: Path):
     _create_raster(tif, arr, (0, 0, 2, 2))
     raw = read_band(tif, scale=1.0)
     assert np.array_equal(raw, arr)
+
+
+def test_read_band_like(tmp_path: Path):
+    arr_ref = np.arange(16, dtype=np.float32).reshape(4, 4)
+    arr = np.arange(4, dtype=np.float32).reshape(2, 2)
+    ref = tmp_path / "ref.tif"
+    other = tmp_path / "other.tif"
+    _create_raster(ref, arr_ref, (0, 0, 4, 4))
+    _create_raster(other, arr, (0, 0, 4, 4))
+    resampled = read_band_like(other, ref, scale=1.0)
+    assert resampled.shape == arr_ref.shape
 
 
 def test_cloud_mask_and_save(tmp_path: Path):
