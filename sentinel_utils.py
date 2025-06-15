@@ -451,6 +451,8 @@ def save_index_png(
     rgba[nodata_mask] = np.array(nodata_rgba) / 255.0
 
     img = Image.fromarray((rgba * 255).astype(np.uint8))
+    if path.suffix.lower() in {".jpg", ".jpeg"} and img.mode == "RGBA":
+        img = img.convert("RGB")
     img.save(path, dpi=(dpi, dpi))
 
 

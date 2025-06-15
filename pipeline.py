@@ -158,7 +158,11 @@ def step_fetch_sentinel(
             b09 = read_band_like(paths_high["B09"], paths_high["B04"], bbox=sb)
             b11 = read_band_like(paths_high["B11"], paths_high["B04"], bbox=sb)
             mask_h = hollstein_cloud_mask(b01, b02, b03, b05, b06, b07, b8a, b09, b11)
-        save_mask_png(mask_h, base / "sentinel_cloud_mask_high.png", dpi=dpi)
+        mask_high_path = base / "sentinel_cloud_mask_high.png"
+        save_mask_png(mask_h, mask_high_path, dpi=dpi)
+        console.log(
+            f"[cyan]Wrote {mask_high_path} ({np.count_nonzero(mask_h)} masked pixels)"
+        )
         red_h, nir_h = apply_mask(mask_h, red_h, nir_h)
 
         if "SCL" in paths_low:
@@ -177,7 +181,11 @@ def step_fetch_sentinel(
             b09 = read_band_like(paths_low["B09"], paths_low["B04"], bbox=sb)
             b11 = read_band_like(paths_low["B11"], paths_low["B04"], bbox=sb)
             mask_l = hollstein_cloud_mask(b01, b02, b03, b05, b06, b07, b8a, b09, b11)
-        save_mask_png(mask_l, base / "sentinel_cloud_mask_low.png", dpi=dpi)
+        mask_low_path = base / "sentinel_cloud_mask_low.png"
+        save_mask_png(mask_l, mask_low_path, dpi=dpi)
+        console.log(
+            f"[cyan]Wrote {mask_low_path} ({np.count_nonzero(mask_l)} masked pixels)"
+        )
         red_l, nir_l = apply_mask(mask_l, red_l, nir_l)
 
         ndvi_h = compute_kndvi(red_h, nir_h)
@@ -185,14 +193,23 @@ def step_fetch_sentinel(
         diff = ndvi_h - ndvi_l
         ratio = ndvi_h / (ndvi_l + 1e-6)
 
-        save_index_png(ndvi_h, base / "sentinel_ndvi_high.png", dpi=dpi)
-        save_index_png(ndvi_l, base / "sentinel_ndvi_low.png", dpi=dpi)
-        save_index_png(diff, base / "sentinel_ndvi_diff.png", dpi=dpi)
-        save_index_png(ratio, base / "sentinel_ndvi_ratio.png", dpi=dpi)
-        resize_image(base / "sentinel_ndvi_high.png")
-        resize_image(base / "sentinel_ndvi_low.png")
-        resize_image(base / "sentinel_ndvi_diff.png")
-        resize_image(base / "sentinel_ndvi_ratio.png")
+        ndvi_high_path = base / "sentinel_ndvi_high.png"
+        ndvi_low_path = base / "sentinel_ndvi_low.png"
+        ndvi_diff_path = base / "sentinel_ndvi_diff.png"
+        ndvi_ratio_path = base / "sentinel_ndvi_ratio.png"
+        save_index_png(ndvi_h, ndvi_high_path, dpi=dpi)
+        console.log(f"[cyan]Wrote {ndvi_high_path}")
+        save_index_png(ndvi_l, ndvi_low_path, dpi=dpi)
+        console.log(f"[cyan]Wrote {ndvi_low_path}")
+        save_index_png(diff, ndvi_diff_path, dpi=dpi)
+        console.log(f"[cyan]Wrote {ndvi_diff_path}")
+        save_index_png(ratio, ndvi_ratio_path, dpi=dpi)
+        console.log(f"[cyan]Wrote {ndvi_ratio_path}")
+        resize_image(ndvi_high_path)
+        resize_image(ndvi_low_path)
+        resize_image(ndvi_diff_path)
+        resize_image(ndvi_ratio_path)
+        console.log("[cyan]Resized NDVI preview images")
 
         red_h_c = read_band(paths_high["B04"], bbox=bbox)
         nir_h_c = read_band(paths_high["B08"], bbox=bbox)
@@ -217,10 +234,18 @@ def step_fetch_sentinel(
         diff_c = ndvi_h_c - ndvi_l_c
         ratio_c = ndvi_h_c / (ndvi_l_c + 1e-6)
 
-        save_index_png(ndvi_h_c, base / "sentinel_ndvi_high_clean.png", dpi=dpi)
-        save_index_png(ndvi_l_c, base / "sentinel_ndvi_low_clean.png", dpi=dpi)
-        save_index_png(diff_c, base / "sentinel_ndvi_diff_clean.png", dpi=dpi)
-        save_index_png(ratio_c, base / "sentinel_ndvi_ratio_clean.png", dpi=dpi)
+        ndvi_high_clean_path = base / "sentinel_ndvi_high_clean.png"
+        ndvi_low_clean_path = base / "sentinel_ndvi_low_clean.png"
+        ndvi_diff_clean_path = base / "sentinel_ndvi_diff_clean.png"
+        ndvi_ratio_clean_path = base / "sentinel_ndvi_ratio_clean.png"
+        save_index_png(ndvi_h_c, ndvi_high_clean_path, dpi=dpi)
+        console.log(f"[cyan]Wrote {ndvi_high_clean_path}")
+        save_index_png(ndvi_l_c, ndvi_low_clean_path, dpi=dpi)
+        console.log(f"[cyan]Wrote {ndvi_low_clean_path}")
+        save_index_png(diff_c, ndvi_diff_clean_path, dpi=dpi)
+        console.log(f"[cyan]Wrote {ndvi_diff_clean_path}")
+        save_index_png(ratio_c, ndvi_ratio_clean_path, dpi=dpi)
+        console.log(f"[cyan]Wrote {ndvi_ratio_clean_path}")
 
         return {"bounds": sb}
 
@@ -268,7 +293,11 @@ def step_fetch_sentinel(
             b09 = read_band_like(paths["B09"], paths["B04"], bbox=sb)
             b11 = read_band_like(paths["B11"], paths["B04"], bbox=sb)
             mask = hollstein_cloud_mask(b01, b02, b03, b05, b06, b07, b8a, b09, b11)
-        save_mask_png(mask, base / "sentinel_cloud_mask.png", dpi=dpi)
+        mask_path = base / "sentinel_cloud_mask.png"
+        save_mask_png(mask, mask_path, dpi=dpi)
+        console.log(
+            f"[cyan]Wrote {mask_path} ({np.count_nonzero(mask)} masked pixels)"
+        )
         b02, b03, b04 = apply_mask(mask, b02, b03, b04)
         tc_full = base / "sentinel_true_color.jpg"
         if not tc_full.exists():
@@ -294,10 +323,9 @@ def step_fetch_sentinel(
             b11 = read_band_like(paths["B11"], paths["B04"], bbox=bbox)
             mask_c = hollstein_cloud_mask(b01, b02_c, b03_c, b05, b06, b07, b8a, b09, b11)
         b02_c, b03_c, b04_c = apply_mask(mask_c, b02_c, b03_c, b04_c)
-        save_true_color(
-            b02_c, b03_c, b04_c, base / "sentinel_true_color_clean.png", dpi=dpi
-        )
-        console.log(f"[cyan]Wrote {base / 'sentinel_true_color_clean.png'}")
+        tc_clean = base / "sentinel_true_color_clean.png"
+        save_true_color(b02_c, b03_c, b04_c, tc_clean, dpi=dpi)
+        console.log(f"[cyan]Wrote {tc_clean}")
 
     if cfg.get("visualize", True) and {"B04", "B08"}.issubset(paths):
         red = read_band(paths["B04"], bbox=sb)
@@ -313,6 +341,7 @@ def step_fetch_sentinel(
             save_index_png(kndvi, kndvi_full, dpi=dpi)
             console.log(f"[cyan]Wrote {kndvi_full}")
             resize_image(kndvi_full)
+            console.log(f"[cyan]Resized {kndvi_full}")
         else:
             console.log(f"[cyan]Using existing {kndvi_full}")
 
@@ -334,8 +363,9 @@ def step_fetch_sentinel(
             mask_c = hollstein_cloud_mask(b01, b02, b03, b05, b06, b07, b8a, b09, b11)
         red_c, nir_c = apply_mask(mask_c, red_c, nir_c)
         kndvi_c = compute_kndvi(red_c, nir_c)
-        save_index_png(kndvi_c, base / "sentinel_kndvi_clean.png", dpi=dpi)
-        console.log(f"[cyan]Wrote {base / 'sentinel_kndvi_clean.png'}")
+        kndvi_clean_path = base / "sentinel_kndvi_clean.png"
+        save_index_png(kndvi_c, kndvi_clean_path, dpi=dpi)
+        console.log(f"[cyan]Wrote {kndvi_clean_path}")
 
     return paths
 
