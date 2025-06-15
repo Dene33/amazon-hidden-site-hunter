@@ -16,7 +16,9 @@ from sentinel_utils import (
     compute_kndvi,
     read_band,
     search_sentinel2_item,
+    search_sentinel2_items,
     download_bands,
+    composite_cloud_free,
 )
 
 
@@ -52,7 +54,18 @@ def test_search_sentinel_http_error():
     with patch("sentinel_utils.requests.post") as post:
         post.return_value.raise_for_status.side_effect = requests.HTTPError()
         result = search_sentinel2_item(bbox, "2024-01-01", "2024-12-31")
-        assert result is None
+    assert result is None
+
+
+def test_search_sentinel_items_limit():
+    bbox = (-1, -1, 1, 1)
+    with patch("sentinel_utils.requests.post") as post:
+        post.return_value.json.return_value = {"features": [1, 2, 3]}
+        post.return_value.raise_for_status.return_value = None
+        items = search_sentinel2_items(bbox, "2024-01-01", "2024-12-31", limit=5)
+        args, kwargs = post.call_args
+        assert kwargs["json"]["limit"] == 5
+        assert items == [1, 2, 3]
 
 
 def _create_raster(
@@ -145,3 +158,31 @@ def test_download_bands_unique_names(tmp_path: Path) -> None:
     expected = "item123_0.00000_1.00000_2.00000_3.00000_20240430_B02.tif"
     assert paths["B02"].name == expected
     assert paths["B02"].exists()
+
+
+def test_composite_cloud_free(tmp_path: Path) -> None:
+    arr1 = np.full((5, 5), 2000, dtype=np.float32)
+    arr2 = np.full((5, 5), 4000, dtype=np.float32)
+    scl1 = np.zeros((5, 5), dtype=np.uint8)
+    scl1[:, 2:] = 9  # cloud
+    scl2 = np.zeros((5, 5), dtype=np.uint8)
+
+    b1 = tmp_path / "b1.tif"
+    b2 = tmp_path / "b2.tif"
+    s1 = tmp_path / "s1.tif"
+    s2 = tmp_path / "s2.tif"
+
+    _create_raster(b1, arr1, (0, 0, 5, 5))
+    _create_raster(b2, arr2, (0, 0, 5, 5))
+    _create_raster(s1, scl1, (0, 0, 5, 5))
+    _create_raster(s2, scl2, (0, 0, 5, 5))
+
+    items = [
+        {"B04": b1, "SCL": s1},
+        {"B04": b2, "SCL": s2},
+    ]
+
+    comp = composite_cloud_free(items, ["B04"], bbox=(0, 0, 5, 5))
+    assert comp["B04"].shape == (5, 5)
+    assert np.isclose(comp["B04"][0, 0], 0.3, atol=1e-6)
+    assert np.isclose(comp["B04"][0, 4], 0.4, atol=1e-6)
