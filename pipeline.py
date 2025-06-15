@@ -202,12 +202,16 @@ def step_fetch_sentinel(
             scl_h_c = read_band_like(
                 paths_high["SCL"], paths_high["B04"], bbox=bbox, scale=1.0
             )
-            red_h_c, nir_h_c = mask_clouds(scl_h_c, red_h_c, nir_h_c)
+            red_h_c, nir_h_c = mask_clouds(
+                scl_h_c, red_h_c, nir_h_c, fill_value=-9999
+            )
         if "SCL" in paths_low:
             scl_l_c = read_band_like(
                 paths_low["SCL"], paths_low["B04"], bbox=bbox, scale=1.0
             )
-            red_l_c, nir_l_c = mask_clouds(scl_l_c, red_l_c, nir_l_c)
+            red_l_c, nir_l_c = mask_clouds(
+                scl_l_c, red_l_c, nir_l_c, fill_value=-9999
+            )
         ndvi_h_c = compute_kndvi(red_h_c, nir_h_c)
         ndvi_l_c = compute_kndvi(red_l_c, nir_l_c)
         diff_c = ndvi_h_c - ndvi_l_c

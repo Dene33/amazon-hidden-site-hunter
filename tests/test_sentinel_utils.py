@@ -24,6 +24,7 @@ from sentinel_utils import (
     save_index_png,
     search_sentinel2_item,
     download_bands,
+    FILL_VALUE,
 )
 
 
@@ -42,6 +43,20 @@ def test_compute_ndvi_simple():
     ndvi = compute_ndvi(red, nir)
     assert ndvi.shape == red.shape
     assert np.all(ndvi >= -1) and np.all(ndvi <= 1)
+
+
+def test_compute_ndvi_ignore_fill():
+    red = np.array([[0.2, FILL_VALUE]])
+    nir = np.array([[0.6, 0.6]])
+    ndvi = compute_ndvi(red, nir)
+    assert np.isnan(ndvi[0, 1])
+
+
+def test_compute_kndvi_ignore_fill():
+    red = np.array([[0.2, FILL_VALUE]])
+    nir = np.array([[0.6, 0.6]])
+    kndvi = compute_kndvi(red, nir)
+    assert np.isnan(kndvi[0, 1])
 
 
 def test_search_sentinel_rfc3339():

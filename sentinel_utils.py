@@ -18,6 +18,8 @@ SEARCH_URL = "https://earth-search.aws.element84.com/v1/search"
 
 console = Console()
 
+FILL_VALUE = -9999.0
+
 
 def _to_rfc3339(date: str, end: bool = False) -> str:
     """Convert ``YYYY-MM-DD`` strings to RFC3339 format accepted by Earth Search."""
@@ -229,7 +231,17 @@ def bounds(path: Path) -> Tuple[float, float, float, float]:
 
 
 def compute_ndvi(red: np.ndarray, nir: np.ndarray) -> np.ndarray:
-    """Compute the normalized difference vegetation index."""
+    """Compute the normalized difference vegetation index.
+
+    Pixels equal to ``FILL_VALUE`` are ignored by returning NaNs in the
+    resulting array.
+    """
+
+    red = red.astype(np.float32)
+    nir = nir.astype(np.float32)
+    mask = (red == FILL_VALUE) | (nir == FILL_VALUE)
+    red = np.where(mask, np.nan, red)
+    nir = np.where(mask, np.nan, nir)
     return (nir - red) / (nir + red + 1e-6)
 
 
