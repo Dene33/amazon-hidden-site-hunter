@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
+
+from scipy.ndimage import binary_dilation
+from rasterio.enums import Resampling
 from datetime import datetime
 
 import matplotlib.pyplot as plt
@@ -14,6 +17,8 @@ from rich.console import Console
 SEARCH_URL = "https://earth-search.aws.element84.com/v1/search"
 
 console = Console()
+
+FILL_VALUE = -9999.0
 
 
 def _to_rfc3339(date: str, end: bool = False) -> str:
@@ -47,10 +52,20 @@ def search_sentinel2_item(
 
 
 BAND_MAP = {
+    "B01": "coastal",
     "B02": "blue",
     "B03": "green",
     "B04": "red",
+    "B05": "rededge1",
+    "B06": "rededge2",
+    "B07": "rededge3",
     "B08": "nir",
+    "B8A": "nir08",
+    "B09": "nir09",
+    "B11": "swir16",
+    "B12": "swir22",
+    # Scene classification layer used for cloud masking
+    "SCL": "scl",
 }
 
 
@@ -109,6 +124,8 @@ def download_bands(
     for band in bands:
         asset = BAND_MAP.get(band)
         if asset is None or asset not in feature["assets"]:
+            if band == "SCL":
+                console.log("[yellow]SCL band not available; skipping cloud mask")
             continue
 
         filename = f"{item_id}{bbox_str}{date_part}_{band}.tif"
@@ -138,17 +155,71 @@ def download_bands(
 
 
 def read_band(
-    path: Path, bbox: Optional[Tuple[float, float, float, float]] = None
+    path: Path,
+    bbox: Optional[Tuple[float, float, float, float]] = None,
+    *,
+    scale: float = 1 / 10000.0,
 ) -> np.ndarray:
-    """Read a band and optionally crop it to a WGS84 ``bbox``."""
+    """Read a band and optionally crop it to a WGS84 ``bbox``.
+
+    Parameters
+    ----------
+    path : Path
+        Raster path.
+    bbox : tuple, optional
+        (xmin, ymin, xmax, ymax) to crop to in WGS84.
+    scale : float, default 1/10000.0
+        Multiplicative scale applied to the data. Set to 1 for integer
+        classification bands like ``SCL``.
+    """
+
     with rio.open(path) as src:
         if bbox is None:
-            arr = src.read(1).astype(np.float32) / 10000.0
+            arr = src.read(1).astype(np.float32)
         else:
             with rio.vrt.WarpedVRT(src, crs="EPSG:4326") as vrt:
                 window = rio.windows.from_bounds(*bbox, transform=vrt.transform)
-                arr = vrt.read(1, window=window).astype(np.float32) / 10000.0
-    return arr
+                arr = vrt.read(1, window=window).astype(np.float32)
+    return arr * scale
+
+
+def read_band_like(
+    path: Path,
+    reference: Path,
+    bbox: Optional[Tuple[float, float, float, float]] = None,
+    *,
+    scale: float = 1 / 10000.0,
+    resampling: Resampling = Resampling.nearest,
+) -> np.ndarray:
+    """Read ``path`` resampled to match ``reference``.
+
+    This ensures the output array has the same shape and spatial resolution as
+    ``reference`` for the given ``bbox``.
+    """
+
+    with rio.open(reference) as ref:
+        with rio.vrt.WarpedVRT(ref, crs="EPSG:4326") as vrt_ref:
+            if bbox is None:
+                window = rio.windows.Window(0, 0, vrt_ref.width, vrt_ref.height)
+                transform = vrt_ref.transform
+            else:
+                window = rio.windows.from_bounds(*bbox, transform=vrt_ref.transform)
+                transform = vrt_ref.window_transform(window)
+            width = round(window.width)
+            height = round(window.height)
+
+    with rio.open(path) as src:
+        with rio.vrt.WarpedVRT(
+            src,
+            crs="EPSG:4326",
+            transform=transform,
+            width=width,
+            height=height,
+            resampling=resampling,
+        ) as vrt:
+            arr = vrt.read(1).astype(np.float32)
+
+    return arr * scale
 
 
 def bounds(path: Path) -> Tuple[float, float, float, float]:
@@ -160,13 +231,156 @@ def bounds(path: Path) -> Tuple[float, float, float, float]:
 
 
 def compute_ndvi(red: np.ndarray, nir: np.ndarray) -> np.ndarray:
-    """Compute the normalized difference vegetation index."""
-    return (nir - red) / (nir + red + 1e-6)
+    """Compute NDVI while honouring a nodata fill value."""
+    red = red.astype(np.float32)
+    nir = nir.astype(np.float32)
+
+    # Build a mask of bad pixels
+    nodata = (red == FILL_VALUE) | (nir == FILL_VALUE)
+
+    denom = nir + red
+    zero_denom = denom == 0
+
+    # Combine the two masks and prepare a result output
+    mask = nodata | zero_denom
+    ndvi = np.full_like(red, np.nan, dtype=np.float32)
+
+    # Safe division only on valid pixels
+    valid = ~mask
+    ndvi[valid] = (nir[valid] - red[valid]) / denom[valid]
+
+    return ndvi
 
 
 def compute_kndvi(red: np.ndarray, nir: np.ndarray) -> np.ndarray:
     ndvi = compute_ndvi(red, nir)
     return np.tanh(np.square(ndvi))
+
+
+# ---------------------------------------------------------------------------
+# Cloud masking utilities
+# ---------------------------------------------------------------------------
+
+# Pixel values in the Sentinel-2 scene classification layer corresponding
+# to clouds or their shadows. These will be masked out before further
+# processing.
+CLOUD_CLASSES = {3, 8, 9, 10, 11}
+
+
+def cloud_mask(scl: np.ndarray, dilation: int = 0) -> np.ndarray:
+    """Return a boolean mask where ``True`` indicates cloud or shadow pixels."""
+
+    mask = np.isin(scl, list(CLOUD_CLASSES))
+    if dilation > 0:
+        mask = binary_dilation(mask, iterations=dilation)
+    return mask
+
+
+def hollstein_cloud_mask(
+    b01: np.ndarray,
+    b02: np.ndarray,
+    b03: np.ndarray,
+    b05: np.ndarray,
+    b06: np.ndarray,
+    b07: np.ndarray,
+    b8a: np.ndarray,
+    b09: np.ndarray,
+    b11: np.ndarray,
+    b10: Optional[np.ndarray] = None,
+    *,
+    dilation: int = 2,
+) -> np.ndarray:
+    """Approximate cloud mask using the Hollstein algorithm.
+
+    Parameters
+    ----------
+    b01, b02, b03, b05, b06, b07, b8a, b09, b11 : np.ndarray
+        Reflectance bands scaled between 0 and 1.
+    b10 : np.ndarray, optional
+        Cirrus band. If ``None``, zeros are used instead.
+    dilation : int, default 2
+        Number of dilations applied to the mask.
+    """
+
+    if b10 is None:
+        b10 = np.zeros_like(b01)
+
+    cond_a = b03 < 0.319
+    cond_b = b8a < 0.166
+    cond_c = b03 - b07 < 0.027
+    cond_d = b09 - b11 < -0.097
+
+    shadow1 = cond_a & cond_b & cond_c & ~cond_d
+    shadow2 = cond_a & cond_b & ~cond_c & (b09 - b11 >= 0.021)
+
+    cond_e = cond_a & ~cond_b & (b02 / (b10 + 1e-6) < 14.689)
+    cirrus1 = cond_e & ~(b02 / (b09 + 1e-6) < 0.788)
+
+    cond_f = ~cond_a
+    cond_g = b05 / (b11 + 1e-6) < 4.33
+    cond_h = b11 - b10 < 0.255
+    cond_i = b06 - b07 < -0.016
+
+    cloud1 = cond_f & cond_g & cond_h & cond_i
+    cirrus2 = cond_f & cond_g & cond_h & ~cond_i
+    cloud2 = cond_f & cond_g & ~cond_h & ~(b01 < 0.3)
+
+    shadow3 = cond_f & ~cond_g & (b03 < 0.525) & ~((b01 / (b05 + 1e-6)) < 1.184)
+
+    mask = shadow1 | shadow2 | cirrus1 | cloud1 | cirrus2 | cloud2 | shadow3
+
+    if dilation > 0:
+        mask = binary_dilation(mask, iterations=dilation)
+
+    return mask
+
+
+def apply_mask(mask: np.ndarray, *bands: np.ndarray, fill_value: float = np.nan) -> Tuple[np.ndarray, ...]:
+    """Apply ``mask`` to ``bands``, returning masked copies."""
+
+    masked = []
+    for arr in bands:
+        m = arr.astype(np.float32, copy=True)
+        m[mask] = fill_value
+        masked.append(m)
+    return tuple(masked)
+
+
+def mask_clouds(
+    scl: np.ndarray,
+    *bands: np.ndarray,
+    fill_value: float = np.nan,
+    dilation: int = 2,
+) -> Tuple[np.ndarray, ...]:
+    """Mask cloud and shadow pixels in ``bands`` using the ``scl`` array.
+
+    Parameters
+    ----------
+    scl : np.ndarray
+        Scene classification layer where cloud/shadow pixels have the
+        values defined in ``CLOUD_CLASSES``.
+    bands : np.ndarray
+        One or more arrays to mask in-place.
+    fill_value : float, default ``np.nan``
+        Value assigned to masked pixels.
+    dilation : int, default 2
+        Number of dilations applied to the mask to remove cloud edges.
+
+    Returns
+    -------
+    tuple of np.ndarray
+        The masked arrays in the same order as provided.
+    """
+
+    mask = cloud_mask(scl, dilation=dilation)
+    return apply_mask(mask, *bands, fill_value=fill_value)
+
+
+def save_mask_png(mask: np.ndarray, path: Path, dpi: int = 150) -> None:
+    """Save a binary cloud mask as an image."""
+
+    plt.imsave(path, mask.astype(float), cmap="gray", dpi=dpi)
+
 
 
 def save_true_color(
@@ -207,34 +421,37 @@ def save_index_png(
     arr: np.ndarray,
     path: Path,
     cmap: str = "RdYlGn",
-    quality: int = 95,
+    vmin: float | None = None,
+    vmax: float | None = None,
     dpi: int = 150,
+    nodata_rgba: tuple[int, int, int, int] = (0, 0, 0, 0),   # transparent
 ) -> None:
-    """Save an index array as an image.
+    """Save a float array (any range) using a Matplotlib colormap."""
 
-    Parameters
-    ----------
-    arr
-        Array with values scaled between 0 and 1.
-    path
-        Destination ``.png`` or ``.jpg`` file.
-    cmap
-        Matplotlib colormap name.
-    quality
-        JPEG quality if saving to that format.
-    dpi
-        Resolution metadata stored in the output image.
-    """
+    import matplotlib.pyplot as plt
+    from PIL import Image
+    import numpy as np
 
-    arr = np.clip(arr, np.nanmin(arr), np.nanmax(arr))
-    if path.suffix.lower() in {".jpg", ".jpeg"}:
-        norm = plt.Normalize(vmin=float(np.nanmin(arr)), vmax=float(np.nanmax(arr)))
-        cm = plt.get_cmap(cmap)
-        rgba = cm(norm(arr))
-        img = Image.fromarray((rgba[:, :, :3] * 255).astype(np.uint8))
-        img.save(path, quality=quality, dpi=(dpi, dpi))
-    else:
-        plt.imsave(path, arr, cmap=cmap, dpi=dpi)
+    # If caller did not provide limits, deduce them (ignoring NaNs)
+    if vmin is None or vmax is None:
+        finite = arr[np.isfinite(arr)]
+        if finite.size == 0:
+            vmin, vmax = 0.0, 1.0
+        else:
+            vmin, vmax = float(finite.min()), float(finite.max())
+            if vmin == vmax:
+                vmax = vmin + 1e-6
+
+    norm = plt.Normalize(vmin=vmin, vmax=vmax, clip=True)
+    cm   = plt.get_cmap(cmap)
+    rgba = cm(norm(arr))             # shape (H,W,4), float 0‑1
+
+    # Paint nodata
+    nodata_mask = ~np.isfinite(arr)
+    rgba[nodata_mask] = np.array(nodata_rgba) / 255.0
+
+    img = Image.fromarray((rgba * 255).astype(np.uint8))
+    img.save(path, dpi=(dpi, dpi))
 
 
 def resize_image(

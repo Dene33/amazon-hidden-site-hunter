@@ -43,6 +43,12 @@ from sentinel_utils import (
     compute_ndvi,
     download_bands,
     read_band,
+    read_band_like,
+    mask_clouds,
+    apply_mask,
+    cloud_mask,
+    hollstein_cloud_mask,
+    save_mask_png,
     save_index_png,
     save_true_color,
     resize_image,
@@ -100,7 +106,14 @@ def step_fetch_sentinel(
         if item_high is None or item_low is None:
             console.log("[red]No Sentinel-2 images found for both periods")
             return {}
-        bands = ["B04", "B08"]
+        bands = ["B02", "B03", "B04", "B08"]
+        has_scl_h = "scl" in item_high.get("assets", {})
+        has_scl_l = "scl" in item_low.get("assets", {})
+        if has_scl_h or has_scl_l:
+            bands.append("SCL")
+        else:
+            console.log("[yellow]SCL band missing; using Hollstein mask")
+            bands += ["B01", "B05", "B06", "B07", "B8A", "B09", "B11"]
         src_dirs = [Path(p) for p in cfg.get("source_dirs", [])]
         out_dir = base / "sentinel2"
         download_dir = src_dirs[0] if src_dirs else out_dir
@@ -129,6 +142,43 @@ def step_fetch_sentinel(
         nir_h = read_band(paths_high["B08"], bbox=sb)
         red_l = read_band(paths_low["B04"], bbox=sb)
         nir_l = read_band(paths_low["B08"], bbox=sb)
+        if "SCL" in paths_high:
+            scl_h = read_band_like(
+                paths_high["SCL"], paths_high["B04"], bbox=sb, scale=1.0
+            )
+            mask_h = cloud_mask(scl_h)
+        else:
+            b01 = read_band_like(paths_high["B01"], paths_high["B04"], bbox=sb)
+            b02 = read_band_like(paths_high["B02"], paths_high["B04"], bbox=sb)
+            b03 = read_band_like(paths_high["B03"], paths_high["B04"], bbox=sb)
+            b05 = read_band_like(paths_high["B05"], paths_high["B04"], bbox=sb)
+            b06 = read_band_like(paths_high["B06"], paths_high["B04"], bbox=sb)
+            b07 = read_band_like(paths_high["B07"], paths_high["B04"], bbox=sb)
+            b8a = read_band_like(paths_high["B8A"], paths_high["B04"], bbox=sb)
+            b09 = read_band_like(paths_high["B09"], paths_high["B04"], bbox=sb)
+            b11 = read_band_like(paths_high["B11"], paths_high["B04"], bbox=sb)
+            mask_h = hollstein_cloud_mask(b01, b02, b03, b05, b06, b07, b8a, b09, b11)
+        save_mask_png(mask_h, base / "sentinel_cloud_mask_high.png", dpi=dpi)
+        red_h, nir_h = apply_mask(mask_h, red_h, nir_h)
+
+        if "SCL" in paths_low:
+            scl_l = read_band_like(
+                paths_low["SCL"], paths_low["B04"], bbox=sb, scale=1.0
+            )
+            mask_l = cloud_mask(scl_l)
+        else:
+            b01 = read_band_like(paths_low["B01"], paths_low["B04"], bbox=sb)
+            b02 = read_band_like(paths_low["B02"], paths_low["B04"], bbox=sb)
+            b03 = read_band_like(paths_low["B03"], paths_low["B04"], bbox=sb)
+            b05 = read_band_like(paths_low["B05"], paths_low["B04"], bbox=sb)
+            b06 = read_band_like(paths_low["B06"], paths_low["B04"], bbox=sb)
+            b07 = read_band_like(paths_low["B07"], paths_low["B04"], bbox=sb)
+            b8a = read_band_like(paths_low["B8A"], paths_low["B04"], bbox=sb)
+            b09 = read_band_like(paths_low["B09"], paths_low["B04"], bbox=sb)
+            b11 = read_band_like(paths_low["B11"], paths_low["B04"], bbox=sb)
+            mask_l = hollstein_cloud_mask(b01, b02, b03, b05, b06, b07, b8a, b09, b11)
+        save_mask_png(mask_l, base / "sentinel_cloud_mask_low.png", dpi=dpi)
+        red_l, nir_l = apply_mask(mask_l, red_l, nir_l)
 
         ndvi_h = compute_kndvi(red_h, nir_h)
         ndvi_l = compute_kndvi(red_l, nir_l)
@@ -148,6 +198,20 @@ def step_fetch_sentinel(
         nir_h_c = read_band(paths_high["B08"], bbox=bbox)
         red_l_c = read_band(paths_low["B04"], bbox=bbox)
         nir_l_c = read_band(paths_low["B08"], bbox=bbox)
+        if "SCL" in paths_high:
+            scl_h_c = read_band_like(
+                paths_high["SCL"], paths_high["B04"], bbox=bbox, scale=1.0
+            )
+            red_h_c, nir_h_c = mask_clouds(
+                scl_h_c, red_h_c, nir_h_c, fill_value=-9999
+            )
+        if "SCL" in paths_low:
+            scl_l_c = read_band_like(
+                paths_low["SCL"], paths_low["B04"], bbox=bbox, scale=1.0
+            )
+            red_l_c, nir_l_c = mask_clouds(
+                scl_l_c, red_l_c, nir_l_c, fill_value=-9999
+            )
         ndvi_h_c = compute_kndvi(red_h_c, nir_h_c)
         ndvi_l_c = compute_kndvi(red_l_c, nir_l_c)
         diff_c = ndvi_h_c - ndvi_l_c
@@ -167,6 +231,11 @@ def step_fetch_sentinel(
         console.log("[red]No Sentinel-2 images found")
         return {}
     bands = cfg.get("bands", ["B02", "B03", "B04", "B08"])
+    if "scl" in item.get("assets", {}):
+        bands.append("SCL")
+    else:
+        console.log("[yellow]SCL band missing; using Hollstein mask")
+        bands += ["B01", "B05", "B06", "B07", "B8A", "B09", "B11"]
     src_dirs = [Path(p) for p in cfg.get("source_dirs", [])]
     out_dir = base / "sentinel2"
     download_dir = src_dirs[0] if src_dirs else out_dir
@@ -187,6 +256,20 @@ def step_fetch_sentinel(
         b02 = read_band(paths["B02"], bbox=sb)
         b03 = read_band(paths["B03"], bbox=sb)
         b04 = read_band(paths["B04"], bbox=sb)
+        if "SCL" in paths:
+            scl = read_band_like(paths["SCL"], paths["B04"], bbox=sb, scale=1.0)
+            mask = cloud_mask(scl)
+        else:
+            b01 = read_band_like(paths["B01"], paths["B04"], bbox=sb)
+            b05 = read_band_like(paths["B05"], paths["B04"], bbox=sb)
+            b06 = read_band_like(paths["B06"], paths["B04"], bbox=sb)
+            b07 = read_band_like(paths["B07"], paths["B04"], bbox=sb)
+            b8a = read_band_like(paths["B8A"], paths["B04"], bbox=sb)
+            b09 = read_band_like(paths["B09"], paths["B04"], bbox=sb)
+            b11 = read_band_like(paths["B11"], paths["B04"], bbox=sb)
+            mask = hollstein_cloud_mask(b01, b02, b03, b05, b06, b07, b8a, b09, b11)
+        save_mask_png(mask, base / "sentinel_cloud_mask.png", dpi=dpi)
+        b02, b03, b04 = apply_mask(mask, b02, b03, b04)
         tc_full = base / "sentinel_true_color.jpg"
         if not tc_full.exists():
             save_true_color(b02, b03, b04, tc_full, dpi=dpi)
@@ -198,6 +281,19 @@ def step_fetch_sentinel(
         b02_c = read_band(paths["B02"], bbox=bbox)
         b03_c = read_band(paths["B03"], bbox=bbox)
         b04_c = read_band(paths["B04"], bbox=bbox)
+        if "SCL" in paths:
+            scl_c = read_band_like(paths["SCL"], paths["B04"], bbox=bbox, scale=1.0)
+            mask_c = cloud_mask(scl_c)
+        else:
+            b01 = read_band_like(paths["B01"], paths["B04"], bbox=bbox)
+            b05 = read_band_like(paths["B05"], paths["B04"], bbox=bbox)
+            b06 = read_band_like(paths["B06"], paths["B04"], bbox=bbox)
+            b07 = read_band_like(paths["B07"], paths["B04"], bbox=bbox)
+            b8a = read_band_like(paths["B8A"], paths["B04"], bbox=bbox)
+            b09 = read_band_like(paths["B09"], paths["B04"], bbox=bbox)
+            b11 = read_band_like(paths["B11"], paths["B04"], bbox=bbox)
+            mask_c = hollstein_cloud_mask(b01, b02_c, b03_c, b05, b06, b07, b8a, b09, b11)
+        b02_c, b03_c, b04_c = apply_mask(mask_c, b02_c, b03_c, b04_c)
         save_true_color(
             b02_c, b03_c, b04_c, base / "sentinel_true_color_clean.png", dpi=dpi
         )
@@ -206,6 +302,11 @@ def step_fetch_sentinel(
     if cfg.get("visualize", True) and {"B04", "B08"}.issubset(paths):
         red = read_band(paths["B04"], bbox=sb)
         nir = read_band(paths["B08"], bbox=sb)
+        if "SCL" in paths:
+            scl = read_band_like(paths["SCL"], paths["B04"], bbox=sb, scale=1.0)
+            red, nir = mask_clouds(scl, red, nir)
+        else:
+            console.log("[yellow]No SCL band found")
         kndvi = compute_kndvi(red, nir)
         kndvi_full = base / "sentinel_kndvi.png"
         if not kndvi_full.exists():
@@ -217,6 +318,21 @@ def step_fetch_sentinel(
 
         red_c = read_band(paths["B04"], bbox=bbox)
         nir_c = read_band(paths["B08"], bbox=bbox)
+        if "SCL" in paths:
+            scl_c = read_band_like(paths["SCL"], paths["B04"], bbox=bbox, scale=1.0)
+            mask_c = cloud_mask(scl_c)
+        else:
+            b01 = read_band_like(paths["B01"], paths["B04"], bbox=bbox)
+            b02 = read_band_like(paths["B02"], paths["B04"], bbox=bbox)
+            b03 = read_band_like(paths["B03"], paths["B04"], bbox=bbox)
+            b05 = read_band_like(paths["B05"], paths["B04"], bbox=bbox)
+            b06 = read_band_like(paths["B06"], paths["B04"], bbox=bbox)
+            b07 = read_band_like(paths["B07"], paths["B04"], bbox=bbox)
+            b8a = read_band_like(paths["B8A"], paths["B04"], bbox=bbox)
+            b09 = read_band_like(paths["B09"], paths["B04"], bbox=bbox)
+            b11 = read_band_like(paths["B11"], paths["B04"], bbox=bbox)
+            mask_c = hollstein_cloud_mask(b01, b02, b03, b05, b06, b07, b8a, b09, b11)
+        red_c, nir_c = apply_mask(mask_c, red_c, nir_c)
         kndvi_c = compute_kndvi(red_c, nir_c)
         save_index_png(kndvi_c, base / "sentinel_kndvi_clean.png", dpi=dpi)
         console.log(f"[cyan]Wrote {base / 'sentinel_kndvi_clean.png'}")

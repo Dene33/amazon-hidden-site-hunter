@@ -15,8 +15,16 @@ from sentinel_utils import (
     compute_ndvi,
     compute_kndvi,
     read_band,
+    read_band_like,
+    mask_clouds,
+    apply_mask,
+    hollstein_cloud_mask,
+    cloud_mask,
+    save_mask_png,
+    save_index_png,
     search_sentinel2_item,
     download_bands,
+    FILL_VALUE,
 )
 
 
@@ -35,6 +43,20 @@ def test_compute_ndvi_simple():
     ndvi = compute_ndvi(red, nir)
     assert ndvi.shape == red.shape
     assert np.all(ndvi >= -1) and np.all(ndvi <= 1)
+
+
+def test_compute_ndvi_ignore_fill():
+    red = np.array([[0.2, FILL_VALUE]])
+    nir = np.array([[0.6, 0.6]])
+    ndvi = compute_ndvi(red, nir)
+    assert np.isnan(ndvi[0, 1])
+
+
+def test_compute_kndvi_ignore_fill():
+    red = np.array([[0.2, FILL_VALUE]])
+    nir = np.array([[0.6, 0.6]])
+    kndvi = compute_kndvi(red, nir)
+    assert np.isnan(kndvi[0, 1])
 
 
 def test_search_sentinel_rfc3339():
@@ -145,3 +167,109 @@ def test_download_bands_unique_names(tmp_path: Path) -> None:
     expected = "item123_0.00000_1.00000_2.00000_3.00000_20240430_B02.tif"
     assert paths["B02"].name == expected
     assert paths["B02"].exists()
+
+
+def test_mask_clouds_basic():
+    scl = np.array([[4, 9], [3, 0]], dtype=np.float32)
+    red = np.ones_like(scl)
+    nir = np.ones_like(scl) * 2
+    red_m, nir_m = mask_clouds(scl, red, nir, dilation=0)
+    assert np.isnan(red_m[0, 1]) and np.isnan(nir_m[0, 1])
+    assert np.isnan(red_m[1, 0]) and np.isnan(nir_m[1, 0])
+    assert red_m[0, 0] == 1 and nir_m[0, 0] == 2
+
+
+def test_mask_clouds_dilation():
+    scl = np.array([[4, 9], [4, 4]], dtype=np.float32)
+    band = np.ones_like(scl)
+    masked, = mask_clouds(scl, band, fill_value=-9999, dilation=1)
+    assert masked[0, 0] == -9999
+
+
+def test_read_band_scale(tmp_path: Path):
+    arr = np.arange(4, dtype=np.float32).reshape(2, 2)
+    tif = tmp_path / "scl.tif"
+    _create_raster(tif, arr, (0, 0, 2, 2))
+    raw = read_band(tif, scale=1.0)
+    assert np.array_equal(raw, arr)
+
+
+def test_read_band_like(tmp_path: Path):
+    arr_ref = np.arange(16, dtype=np.float32).reshape(4, 4)
+    arr = np.arange(4, dtype=np.float32).reshape(2, 2)
+    ref = tmp_path / "ref.tif"
+    other = tmp_path / "other.tif"
+    _create_raster(ref, arr_ref, (0, 0, 4, 4))
+    _create_raster(other, arr, (0, 0, 4, 4))
+    resampled = read_band_like(other, ref, scale=1.0)
+    assert resampled.shape == arr_ref.shape
+
+
+def test_read_band_like_bbox(tmp_path: Path):
+    arr_ref = np.arange(16, dtype=np.float32).reshape(4, 4)
+    arr = np.arange(4, dtype=np.float32).reshape(2, 2)
+    ref = tmp_path / "ref.tif"
+    other = tmp_path / "other.tif"
+    _create_raster(ref, arr_ref, (0, 0, 4, 4))
+    _create_raster(other, arr, (0, 0, 4, 4))
+    bbox = (1, 1, 3, 3)
+    cropped = read_band_like(other, ref, bbox=bbox, scale=1.0)
+    expected = read_band(ref, bbox=bbox, scale=1.0)
+    assert cropped.shape == expected.shape
+
+
+def test_cloud_mask_and_save(tmp_path: Path):
+    scl = np.array([[0, 9], [4, 1]], dtype=np.float32)
+    mask = cloud_mask(scl, dilation=0)
+    assert mask.dtype == bool
+    assert mask[0, 1] and not mask[1, 0]
+    png = tmp_path / "mask.png"
+    save_mask_png(mask, png, dpi=123)
+    with Image.open(png) as img:
+        dpi_info = img.info.get("dpi")
+        assert dpi_info and round(dpi_info[0]) == 123 and round(dpi_info[1]) == 123
+
+
+def test_hollstein_cloud_mask_basic():
+    mask = hollstein_cloud_mask(
+        b01=np.array([[0.4, 0.2]], dtype=np.float32),
+        b02=np.array([[0.1, 0.1]], dtype=np.float32),
+        b03=np.array([[0.35, 0.1]], dtype=np.float32),
+        b05=np.array([[0.2, 0.1]], dtype=np.float32),
+        b06=np.array([[0.1, 0.1]], dtype=np.float32),
+        b07=np.array([[0.0, 0.0]], dtype=np.float32),
+        b8a=np.array([[0.2, 0.05]], dtype=np.float32),
+        b09=np.array([[0.1, 0.1]], dtype=np.float32),
+        b11=np.array([[0.2, 0.1]], dtype=np.float32),
+        dilation=0,
+    )
+    assert mask.shape == (1, 2)
+    assert mask[0, 0]
+
+
+def test_apply_mask():
+    mask = np.array([[True, False]])
+    arr = np.array([[1.0, 2.0]])
+    masked, = apply_mask(mask, arr, fill_value=-9999)
+    assert masked[0, 0] == -9999 and masked[0, 1] == 2.0
+
+
+def test_save_index_png_all_nan(tmp_path: Path):
+    arr = np.full((2, 2), np.nan, dtype=np.float32)
+    out = tmp_path / "nan.png"
+    save_index_png(arr, out, dpi=120)
+    assert out.exists()
+    with Image.open(out) as img:
+        dpi_info = img.info.get("dpi")
+        assert dpi_info and round(dpi_info[0]) == 120
+
+
+def test_save_index_png_constant(tmp_path: Path):
+    arr = np.ones((2, 2), dtype=np.float32) * 0.5
+    out = tmp_path / "const.png"
+    save_index_png(arr, out, dpi=180)
+    with Image.open(out) as img:
+        dpi_info = img.info.get("dpi")
+        assert dpi_info and round(dpi_info[0]) == 180
+        pix = np.array(img)
+        assert pix.var() >= 0
