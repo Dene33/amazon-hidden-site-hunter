@@ -501,7 +501,24 @@ def detect_anomalies(
     size_thresh_m: float = 200,
     debug_dir: Path | None = None,
 ):
-    """Identify potential anomalies in the residual relief model."""
+    """Identify potential anomalies in the residual relief model.
+    
+    Parameters
+    ----------
+    rrm : np.ndarray
+        Residual relief model (RRM) after subtracting DEM.
+    xi, yi : np.ndarray
+        2-D arrays of longitude and latitude coordinates for the grid.
+    sigma : float
+        Standard deviation for Gaussian smoothing (default: 2).
+    amp_thresh : float
+        Amplitude threshold for anomaly detection (default: 1.0 m).
+    size_thresh_m : float
+        Minimum size of detected anomalies in meters (default: 200 m).
+    debug_dir : Path | None
+        Directory to save debug plots (default: None, no plots saved).
+
+    """
 
     rrm_smooth = _nan_gaussian_filter(rrm, sigma=sigma)
     mask = np.abs(rrm_smooth) >= amp_thresh
