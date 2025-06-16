@@ -3,7 +3,7 @@
 bbox: [-64.651794, -15.010122, -64.572144, -14.952414]
 out_dir: example_output
 
-step1:
+fetch_data:
   enabled: true
   fetch_cop_tiles:
     enabled: true
@@ -40,12 +40,12 @@ aw3d:
   visualize: true
   source_dirs: []
 
-step2:
+bare_earth:
   enabled: true
   resolution: 0.0002695
   visualize: true
 
-step3:
+residual_relief:
   enabled: true
   visualize: true
   # Optional list of DEMs to subtract from the GEDI bare-earth surface.
@@ -53,7 +53,7 @@ step3:
   # before subtraction.
   dems: ['aw3d']
 
-step4:
+detect_anomalies:
   enabled: true
   sigma: .002
   amp_thresh: 25
@@ -62,20 +62,20 @@ step4:
   save_json: true
   debug: true
 
-step5:
+interactive_map:
   enabled: true
   include_data_vis: true
   include_full_sentinel: false
   include_full_srtm: false
   include_full_aw3d: false
 
-step6:
+export_obj:
   enabled: true
   bare_earth_file: bare_earth.obj
   dem_file: dem_crop.obj
   scale: 0.01
 
-step7:
+export_xyz:
   enabled: true
   bare_earth_file: bare_earth.xyz
   dem_file: dem_crop.xyz

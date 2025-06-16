@@ -742,7 +742,7 @@ def run_pipeline(config: Dict[str, Any]):
     if len(bbox) != 4:
         raise ValueError("bbox must be provided with 4 coordinates")
     # Step 1 – fetch data
-    dem_path, gedi = step_fetch_data(config.get("step1", {}), bbox, base)
+    dem_path, gedi = step_fetch_data(config.get("fetch_data", {}), bbox, base)
 
     # Optional – fetch SRTM DEM
     srtm_path = step_fetch_srtm(config.get("srtm", {}), bbox, base)
@@ -754,18 +754,20 @@ def run_pipeline(config: Dict[str, Any]):
     sentinel_paths = step_fetch_sentinel(config.get("sentinel", {}), bbox, base)
 
     # Step 2 – bare-earth surface
-    bearth = step_bare_earth(config.get("step2", {}), bbox, gedi, base)
+    bearth = step_bare_earth(config.get("bare_earth", {}), bbox, gedi, base)
 
     # Step 3 – residual relief
     if bearth is not None:
-        rrm = step_residual_relief(config.get("step3", {}), bearth, dem_path, base)
+        rrm = step_residual_relief(
+            config.get("residual_relief", {}), bearth, dem_path, base
+        )
     else:
         rrm = None
 
     # Step 4 – detect anomalies
     if bearth is not None:
         anomalies = step_detect_anomalies(
-            config.get("step4", {}),
+            config.get("detect_anomalies", {}),
             rrm,
             bearth[0],
             bearth[1],
@@ -784,7 +786,7 @@ def run_pipeline(config: Dict[str, Any]):
 
     # Step 5 – interactive map
     step_interactive_map(
-        config.get("step5", {}),
+        config.get("interactive_map", {}),
         points,
         anomalies,
         bbox,
@@ -793,10 +795,10 @@ def run_pipeline(config: Dict[str, Any]):
     )
 
     # Step 6 – export surfaces for Blender
-    step_export_obj(config.get("step6", {}), bearth, dem_path, base)
+    step_export_obj(config.get("export_obj", {}), bearth, dem_path, base)
 
     # Step 7 – export XYZ point clouds
-    step_export_xyz(config.get("step7", {}), bearth, dem_path, base)
+    step_export_xyz(config.get("export_xyz", {}), bearth, dem_path, base)
 
 
 if __name__ == "__main__":
