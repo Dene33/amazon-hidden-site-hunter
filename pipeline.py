@@ -167,6 +167,7 @@ def step_fetch_sentinel(
 
         # ---- save true colour & kNDVI for whole scene
         kndvi = compute_kndvi(red, nir)
+        kndvi_clean: np.ndarray | None = None
         if swir is not None:
             ndmi = compute_ndmi(nir, swir)
             msi = compute_msi(nir, swir)
@@ -212,6 +213,7 @@ def step_fetch_sentinel(
             red_c = apply_mask(mask_c, read_band(paths["B04"], bbox=bbox))[0]
             nir_c = apply_mask(mask_c, read_band(paths["B08"], bbox=bbox))[0]
             kndvi_c = compute_kndvi(red_c, nir_c)
+            kndvi_clean = kndvi_c
             ndvi_clean = base / f"sentinel_kndvi_{label}_clean.png"
             save_index_png(kndvi_c, ndvi_clean, dpi=dpi)
             console.log(f"[cyan]Wrote {ndvi_clean}")
@@ -226,7 +228,7 @@ def step_fetch_sentinel(
                 save_index_png(ndmi_c, ndmi_clean, dpi=dpi)
                 console.log(f"[cyan]Wrote {msi_clean} and {ndmi_clean}")
 
-        return kndvi
+        return kndvi, kndvi_clean
 
     # ----------------------------------------------------------------– work
     if has_two_periods:
@@ -273,8 +275,8 @@ def step_fetch_sentinel(
         result: Dict[str, Any] = {"bounds": sb}
 
         # ---- products for each period
-        ndvi_hi = _make_products(paths_hi, "high")
-        ndvi_lo = _make_products(paths_lo, "low")
+        ndvi_hi, ndvi_hi_c = _make_products(paths_hi, "high")
+        ndvi_lo, ndvi_lo_c = _make_products(paths_lo, "low")
 
         # ---- two-date comparisons
         if visualise and save_full:
@@ -289,6 +291,15 @@ def step_fetch_sentinel(
                 resize_image(ratio_p)
                 console.log(f"[cyan]Resized {diff_p} and {ratio_p}")
             console.log("[cyan]Wrote two-date NDVI diff / ratio")
+        
+        if visualise:
+            diff_c = ndvi_hi_c - ndvi_lo_c
+            ratio_c = ndvi_hi_c / (ndvi_lo_c + 1e-6)
+            diff_cp = base / "sentinel_ndvi_diff_clean.png"
+            ratio_cp = base / "sentinel_ndvi_ratio_clean.png"
+            save_index_png(diff_c, diff_cp, dpi=dpi)
+            save_index_png(ratio_c, ratio_cp, dpi=dpi)
+            console.log("[cyan]Wrote two-date NDVI diff / ratio (clean)")
 
         return result
 
