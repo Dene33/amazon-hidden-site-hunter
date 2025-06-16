@@ -59,6 +59,44 @@ def test_compute_kndvi_ignore_fill():
     assert np.isnan(kndvi[0, 1])
 
 
+def test_compute_ndmi_simple():
+    nir = np.array([[0.6, 0.5], [0.4, 0.2]])
+    swir = np.array([[0.3, 0.2], [0.4, 0.1]])
+    from sentinel_utils import compute_ndmi
+
+    ndmi = compute_ndmi(nir, swir)
+    assert ndmi.shape == nir.shape
+    assert np.all(ndmi >= -1) and np.all(ndmi <= 1)
+
+
+def test_compute_msi_simple():
+    nir = np.array([[0.6, 0.5], [0.4, 0.2]])
+    swir = np.array([[0.3, 0.2], [0.4, 0.1]])
+    from sentinel_utils import compute_msi
+
+    msi = compute_msi(nir, swir)
+    assert msi.shape == nir.shape
+    assert np.all(msi >= 0)
+
+
+def test_compute_ndmi_ignore_fill():
+    nir = np.array([[0.6, FILL_VALUE]])
+    swir = np.array([[0.3, 0.2]])
+    from sentinel_utils import compute_ndmi
+
+    ndmi = compute_ndmi(nir, swir)
+    assert np.isnan(ndmi[0, 1])
+
+
+def test_compute_msi_ignore_fill():
+    nir = np.array([[0.6, FILL_VALUE]])
+    swir = np.array([[0.3, 0.2]])
+    from sentinel_utils import compute_msi
+
+    msi = compute_msi(nir, swir)
+    assert np.isnan(msi[0, 1])
+
+
 def test_search_sentinel_rfc3339():
     bbox = (-1, -1, 1, 1)
     with patch("sentinel_utils.requests.post") as post:

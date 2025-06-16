@@ -257,6 +257,41 @@ def compute_kndvi(red: np.ndarray, nir: np.ndarray) -> np.ndarray:
     return np.tanh(np.square(ndvi))
 
 
+def compute_ndmi(nir: np.ndarray, swir: np.ndarray) -> np.ndarray:
+    """Compute NDMI while honouring a nodata fill value."""
+    nir = nir.astype(np.float32)
+    swir = swir.astype(np.float32)
+
+    nodata = (nir == FILL_VALUE) | (swir == FILL_VALUE)
+    denom = nir + swir
+    zero_denom = denom == 0
+
+    mask = nodata | zero_denom
+    ndmi = np.full_like(nir, np.nan, dtype=np.float32)
+
+    valid = ~mask
+    ndmi[valid] = (nir[valid] - swir[valid]) / denom[valid]
+
+    return ndmi
+
+
+def compute_msi(nir: np.ndarray, swir: np.ndarray) -> np.ndarray:
+    """Compute MSI while honouring a nodata fill value."""
+    nir = nir.astype(np.float32)
+    swir = swir.astype(np.float32)
+
+    nodata = (nir == FILL_VALUE) | (swir == FILL_VALUE)
+    zero_denom = nir == 0
+
+    mask = nodata | zero_denom
+    msi = np.full_like(nir, np.nan, dtype=np.float32)
+
+    valid = ~mask
+    msi[valid] = swir[valid] / nir[valid]
+
+    return msi
+
+
 # ---------------------------------------------------------------------------
 # Cloud masking utilities
 # ---------------------------------------------------------------------------
