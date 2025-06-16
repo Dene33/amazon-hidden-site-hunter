@@ -615,7 +615,7 @@ def detect_anomalies(
             )
             plt.close(fig_c)
 
-    return gpd.GeoDataFrame(blobs, crs="EPSG:4326")
+    return gpd.GeoDataFrame(blobs, crs="EPSG:4326") if blobs else gpd.GeoDataFrame(columns=["geometry", "score"], crs="EPSG:4326")
 
 
 # def detect_anomalies(rrm, xi, yi, sigma=2, amp_thresh=1.0, size_thresh_m=200):
