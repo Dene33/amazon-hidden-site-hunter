@@ -77,8 +77,8 @@ def test_create_interactive_map_dem_overlays(tmp_path: Path) -> None:
     html = (tmp_path / "interactive_map.html").read_text()
     assert "1b_srtm_crop_hillshade" in html
     assert "1c_aw3d30_crop_hillshade" in html
-    assert "1b_srtm_mosaic_hillshade" not in html
-    assert "1c_aw3d30_mosaic_hillshade" not in html
+    assert "1b_srtm_mosaic_hillshade" in html
+    assert "1c_aw3d30_mosaic_hillshade" in html
 
 
 def test_create_interactive_map_dem_optional(tmp_path: Path) -> None:
@@ -98,8 +98,10 @@ def test_create_interactive_map_dem_optional(tmp_path: Path) -> None:
     )
 
     html = (tmp_path / "interactive_map.html").read_text()
-    assert "1b_srtm_crop_hillshade" not in html
-    assert "1c_aw3d30_crop_hillshade" not in html
+    assert "1b_srtm_crop_hillshade" in html
+    assert "1c_aw3d30_crop_hillshade" in html
+    assert "1b_srtm_mosaic_hillshade" not in html
+    assert "1c_aw3d30_mosaic_hillshade" not in html
 
 
 def test_create_interactive_map_ndvi_diff_clean(tmp_path: Path) -> None:
