@@ -111,7 +111,7 @@ def step_fetch_sentinel(
 
     # ---------------------------------------------------------------- helpers
     def _wanted_bands(item) -> list[str]:
-        core = ["B02", "B03", "B04", "B08"]
+        core = ["B02", "B03", "B04", "B08", "B11"]
         return core + (["SCL"] if "scl" in item.get("assets", {}) else
                        ["B01", "B05", "B06", "B07", "B8A", "B09", "B11"])
 
@@ -157,7 +157,13 @@ def step_fetch_sentinel(
             _masked("B03", sb),
             _masked("B04", sb),
         )
-        swir = _masked("B11", sb) if "B11" in paths else None
+
+        if "B11" in paths:
+            swir = read_band_like(paths["B11"], paths["B04"], bbox=sb, scale=1.0)
+            swir_mask = cloud_mask(swir)
+            swir = apply_mask(swir_mask, swir)[0] if visualise else swir
+        else:
+            swir = None
 
         # ---- save true colour & kNDVI for whole scene
         kndvi = compute_kndvi(red, nir)
@@ -211,7 +217,7 @@ def step_fetch_sentinel(
             console.log(f"[cyan]Wrote {ndvi_clean}")
 
             if "B11" in paths:
-                swir_c = apply_mask(mask_c, read_band(paths["B11"], bbox=bbox))[0]
+                swir_c = apply_mask(mask_c, read_band_like(paths["B11"], paths["B04"], bbox=bbox, scale=1.0))[0]
                 ndmi_c = compute_ndmi(nir_c, swir_c)
                 msi_c = compute_msi(nir_c, swir_c)
                 msi_clean = base / f"sentinel_msi_{label}_clean.png"
