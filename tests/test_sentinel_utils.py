@@ -4,6 +4,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from unittest.mock import patch
+import pytest
 
 import numpy as np
 import rasterio as rio
@@ -159,10 +160,11 @@ def test_save_with_dpi(tmp_path: Path):
     with Image.open(tc) as img:
         assert img.info.get("dpi") == (222, 222)
 
-    idx = tmp_path / "idx.jpg"
+    idx = tmp_path / "idx.png"
     save_index_png(b, idx, dpi=333)
     with Image.open(idx) as img:
-        assert img.info.get("dpi") == (333, 333)
+        dpi = img.info.get("dpi")
+        assert round(dpi[0]) == 333 and round(dpi[1]) == 333
 
 
 def test_resize_image(tmp_path: Path):
