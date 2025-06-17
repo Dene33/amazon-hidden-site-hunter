@@ -117,7 +117,7 @@ def fetch_gedi_points(
     time_end: str,
     cache_dir: Path,
     source_dirs: List[Path] | None = None,
-    max_points: int = 50_000,
+    max_points: int = 100_000,
     threads: int = 4,
     verify_sizes: bool = True,  # Control size verification
     size_tolerance_pct: float = 0.5,  # Allow 0.5% difference in file size
