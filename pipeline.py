@@ -429,7 +429,7 @@ def step_fetch_data(
                 for geom, elev in zip(gedi.geometry, gedi["elev_lowestmode"])
             ]
             visualize_gedi_points(points, bbox, base)
-            console.log(f"[cyan]Wrote {Path(base) / "2_gedi_points_clean.png"}")
+            console.log(f"[cyan]Wrote {Path(base) / '2_gedi_points_clean.png'}")
 
     return dem_path, gedi
 
