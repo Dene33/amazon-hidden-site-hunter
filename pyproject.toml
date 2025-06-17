@@ -31,6 +31,7 @@ dependencies = [
     "geopandas",
     "contextily",
     "pykrige>=1.7.2",
+    "pyyaml>=6.0.2",
 ]
 
 [project.scripts]
