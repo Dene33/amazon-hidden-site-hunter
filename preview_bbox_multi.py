@@ -6,7 +6,8 @@ is divided into a grid of smaller boxes which can be tweaked in the
 browser. Hold the Alt key while clicking a grid cell to remove it, and
 Ctrl-click to add it back. Use the export button to download a JSON file
 containing ``xmin``, ``ymin``, ``xmax`` and ``ymax`` for each selected
-sub-bounding box.
+sub-bounding box. Use ``--esri`` to display the Esri World Imagery
+satellite layer instead of OpenStreetMap.
 """
 
 from pathlib import Path
@@ -46,6 +47,11 @@ def parse_args():
         "--output",
         default=DEFAULT_OUTPUT,
         help=f"Output HTML file (default: {DEFAULT_OUTPUT})",
+    )
+    parser.add_argument(
+        "--esri",
+        action="store_true",
+        help="Use Esri World Imagery as the initial base map layer",
     )
     return parser.parse_args()
 
@@ -191,13 +197,36 @@ def main() -> None:
         xmin, ymin, xmax, ymax = args.bbox
         center_lat = (ymin + ymax) / 2
         center_lon = (xmin + xmax) / 2
-        m = folium.Map(location=[center_lat, center_lon], zoom_start=10)
+        m = folium.Map(location=[center_lat, center_lon], zoom_start=10, tiles=None)
         bbox_bounds = [[ymin, xmin], [ymax, xmax]]
         folium.Rectangle(bbox_bounds, color="red", weight=2, fill=False).add_to(m)
         initial_bounds = bbox_bounds
     else:
-        m = folium.Map(location=[0, 0], zoom_start=2)
+        m = folium.Map(location=[0, 0], zoom_start=2, tiles=None)
         initial_bounds = None
+
+    folium.TileLayer(
+        "OpenStreetMap",
+        name="OpenStreetMap",
+        overlay=False,
+        control=True,
+        show=not args.esri,
+    ).add_to(m)
+
+    folium.TileLayer(
+        tiles=(
+            "https://server.arcgisonline.com/ArcGIS/rest/services/"
+            "World_Imagery/MapServer/tile/{z}/{y}/{x}"
+        ),
+        attr=(
+            "Tiles © Esri — Source: Esri, Maxar, Earthstar Geographics, "
+            "CNES/Airbus DS, USDA, USGS, AeroGRID, IGN, and the GIS User Community"
+        ),
+        name="Esri World Imagery",
+        overlay=False,
+        control=True,
+        show=args.esri,
+    ).add_to(m)
     drawn = folium.FeatureGroup(name="DrawnBBox").add_to(m)
     grid = folium.FeatureGroup(name="Grid").add_to(m)
 
