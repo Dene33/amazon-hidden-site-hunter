@@ -66,7 +66,9 @@ class GridPlugin(MacroElement):
                     for (var y = sw.lat; y < ne.lat; y += gridSize) {
                         var x2 = Math.min(x + gridSize, ne.lng);
                         var y2 = Math.min(y + gridSize, ne.lat);
-                        addRect(x, y, x2, y2);
+                        if ((x2 - x) >= gridSize && (y2 - y) >= gridSize) {
+                            addRect(x, y, x2, y2);
+                        }
                     }
                 }
             }
@@ -107,12 +109,16 @@ class GridPlugin(MacroElement):
                 grid.eachLayer(function(l) {
                     if (l.selected) {
                         var b = l.getBounds();
-                        cells.push({
-                            xmin: b.getWest(),
-                            ymin: b.getSouth(),
-                            xmax: b.getEast(),
-                            ymax: b.getNorth()
-                        });
+                        var width = b.getEast() - b.getWest();
+                        var height = b.getNorth() - b.getSouth();
+                        if (width >= gridSize && height >= gridSize) {
+                            cells.push({
+                                xmin: b.getWest(),
+                                ymin: b.getSouth(),
+                                xmax: b.getEast(),
+                                ymax: b.getNorth()
+                            });
+                        }
                     }
                 });
                 var url = URL.createObjectURL(new Blob([JSON.stringify(cells)], {type: 'application/json'}));
