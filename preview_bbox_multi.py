@@ -3,10 +3,12 @@
 
 Open a Folium map and draw a bounding box interactively. The chosen area
 is divided into a grid of smaller boxes which can be tweaked in the
-browser. Use the export button to download the grid as GeoJSON.
+browser. Use the export button to download the grid as GeoJSON. Hold the
+Ctrl key while clicking a grid cell to remove it.
 """
 
 from pathlib import Path
+import webbrowser
 
 import folium
 from folium import MacroElement
@@ -40,15 +42,24 @@ class GridPlugin(MacroElement):
                 grid.clearLayers();
                 var sw = bounds.getSouthWest();
                 var ne = bounds.getNorthEast();
+                function addRect(x1, y1, x2, y2) {
+                    var rect = L.rectangle([[y1, x1], [y2, x2]], {
+                        color: 'blue',
+                        weight: 1,
+                        fillOpacity: 0.05
+                    });
+                    rect.on('click', function(e) {
+                        if (e.originalEvent.ctrlKey) {
+                            grid.removeLayer(rect);
+                        }
+                    });
+                    rect.addTo(grid);
+                }
                 for (var x = sw.lng; x < ne.lng; x += gridSize) {
                     for (var y = sw.lat; y < ne.lat; y += gridSize) {
                         var x2 = Math.min(x + gridSize, ne.lng);
                         var y2 = Math.min(y + gridSize, ne.lat);
-                        L.rectangle([[y, x], [y2, x2]], {
-                            color: 'blue',
-                            weight: 1,
-                            fillOpacity: 0.05
-                        }).addTo(grid);
+                        addRect(x, y, x2, y2);
                     }
                 }
             }
@@ -130,9 +141,15 @@ def main() -> None:
     GridPlugin(grid, drawn, grid_size).add_to(m)
     folium.LayerControl().add_to(m)
 
-    Path(output).write_text(Figure().add_child(m).render())
-    print(f"Map saved to {Path(output).resolve()}")
+    output_path = Path(output)
+    output_path.write_text(Figure().add_child(m).render())
+    print(f"Map saved to {output_path.resolve()}")
     print("Open the HTML file, draw a rectangle, adjust the grid size, and click Export.")
+
+    try:
+        webbrowser.open(output_path.resolve().as_uri())
+    except Exception as exc:
+        print(f"Could not open browser automatically: {exc}")
 
 
 if __name__ == "__main__":
