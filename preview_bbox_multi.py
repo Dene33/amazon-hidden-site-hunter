@@ -1,110 +1,122 @@
 #!/usr/bin/env python3
-"""Interactive grid preview of a bounding box.
+"""Interactive generation of multiple bounding boxes.
 
-This script displays a bounding box on an interactive Folium map and splits
-it into a grid of smaller bounding boxes. The grid can be edited directly on
- the map using the Leaflet draw controls. When finished, use the "Export"
-button on the map to download the boxes as a GeoJSON file.
+Open a Folium map and draw a bounding box interactively. The chosen area
+is divided into a grid of smaller boxes which can be tweaked in the
+browser. Use the export button to download the grid as GeoJSON.
 """
 
-import argparse
 from pathlib import Path
-from typing import Tuple
 
 import folium
+from folium import MacroElement
+from folium.elements import Figure
 from folium.plugins import Draw
-from shapely.geometry import box
-import yaml
+from jinja2 import Template
 
 
-DEFAULT_CONFIG = "pipeline_config.yaml"
+DEFAULT_OUTPUT = "preview_bbox_multi.html"
+DEFAULT_GRID_SIZE = 0.05  # degrees
 
 
-def parse_args() -> argparse.Namespace:
-    """Return command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="Preview a bounding box and divide it into a grid"
-    )
-    parser.add_argument(
-        "--config",
-        default=DEFAULT_CONFIG,
-        help="YAML config file containing a 'bbox' entry (default: %(default)s)",
-    )
-    parser.add_argument(
-        "--grid-size",
-        type=float,
-        default=0.05,
-        help="Size of the sub‑boxes in degrees (default: %(default)s)",
-    )
-    parser.add_argument(
-        "--output",
-        default="preview_bbox_multi.html",
-        help="Output HTML file",
-    )
-    parser.add_argument(
-        "--json-name",
-        default="bboxes.json",
-        help="Suggested filename for the exported GeoJSON",
-    )
-    return parser.parse_args()
+class GridPlugin(MacroElement):
+    """Add interactive grid controls to a Folium map."""
 
+    def __init__(self, grid_group, draw_group, grid_size):
+        super().__init__()
+        self._name = "GridPlugin"
+        self.grid_group = grid_group
+        self.draw_group = draw_group
+        self.grid_size = grid_size
+        self._template = Template(
+            """
+            {% macro script(this, kwargs) %}
+            var map = {{this._parent.get_name()}};
+            var drawn = {{this.draw_group.get_name()}};
+            var grid = {{this.grid_group.get_name()}};
+            var gridSize = {{this.grid_size}};
 
-def create_grid(bbox: tuple[float, float, float, float], step: float):
-    """Return a list of shapely boxes covering *bbox* with given *step*."""
-    xmin, ymin, xmax, ymax = bbox
-    cells = []
-    x = xmin
-    while x < xmax:
-        y = ymin
-        while y < ymax:
-            x2 = min(x + step, xmax)
-            y2 = min(y + step, ymax)
-            cells.append(box(x, y, x2, y2))
-            y += step
-        x += step
-    return cells
+            function buildGrid(bounds) {
+                grid.clearLayers();
+                var sw = bounds.getSouthWest();
+                var ne = bounds.getNorthEast();
+                for (var x = sw.lng; x < ne.lng; x += gridSize) {
+                    for (var y = sw.lat; y < ne.lat; y += gridSize) {
+                        var x2 = Math.min(x + gridSize, ne.lng);
+                        var y2 = Math.min(y + gridSize, ne.lat);
+                        L.rectangle([[y, x], [y2, x2]], {
+                            color: 'blue',
+                            weight: 1,
+                            fillOpacity: 0.05
+                        }).addTo(grid);
+                    }
+                }
+            }
+
+            map.on('draw:created', function(e) {
+                drawn.clearLayers();
+                drawn.addLayer(e.layer);
+                buildGrid(e.layer.getBounds());
+            });
+
+            var control = L.control({position: 'topright'});
+            control.onAdd = function() {
+                var div = L.DomUtil.create('div', 'grid-control');
+                div.style.background = 'white';
+                div.style.padding = '6px';
+                div.style.font = '14px/1 Arial';
+                div.innerHTML =
+                    'Grid size (deg): <input id="gs" type="number" step="0.01" value="' + gridSize + '" style="width:4em"> ' +
+                    '<button id="exgrid">Export</button>';
+                return div;
+            };
+            control.addTo(map);
+
+            function refreshGrid() {
+                var layers = drawn.getLayers();
+                if (layers.length > 0) {
+                    buildGrid(layers[0].getBounds());
+                }
+            }
+
+            document.getElementById('gs').addEventListener('input', function() {
+                gridSize = parseFloat(this.value);
+                refreshGrid();
+            });
+
+            document.getElementById('exgrid').addEventListener('click', function() {
+                var feats = [];
+                grid.eachLayer(function(l) { feats.push(l.toGeoJSON()); });
+                var geo = {type: 'FeatureCollection', features: feats};
+                var url = URL.createObjectURL(new Blob([JSON.stringify(geo)], {type: 'application/json'}));
+                var a = document.createElement('a');
+                a.href = url;
+                a.download = 'bboxes.json';
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            });
+            {% endmacro %}
+            """
+        )
+
+    def render(self, **kwargs):
+        super().render(**kwargs)
 
 
 def main() -> None:
-    args = parse_args()
+    output = DEFAULT_OUTPUT
+    grid_size = DEFAULT_GRID_SIZE
 
-    # Load bounding box from YAML config
-    cfg_path = Path(args.config)
-    if not cfg_path.exists():
-        raise FileNotFoundError(f"Config file '{cfg_path}' not found")
+    m = folium.Map(location=[0, 0], zoom_start=2)
+    drawn = folium.FeatureGroup(name="DrawnBBox").add_to(m)
+    grid = folium.FeatureGroup(name="Grid").add_to(m)
 
-    with open(cfg_path, "r") as f:
-        cfg = yaml.safe_load(f)
-
-    try:
-        bbox: Tuple[float, float, float, float] = tuple(cfg["bbox"])
-    except Exception as exc:
-        raise ValueError("Config must contain a 'bbox' entry") from exc
-
-    xmin, ymin, xmax, ymax = bbox
-    center = [(ymin + ymax) / 2, (xmin + xmax) / 2]
-
-    m = folium.Map(location=center, zoom_start=10)
-
-    drawn_group = folium.FeatureGroup(name="BBoxes").add_to(m)
-
-    # initial grid
-    for cell in create_grid(bbox, args.grid_size):
-        folium.GeoJson(
-            cell.__geo_interface__,
-            style_function=lambda _: {
-                "color": "blue",
-                "weight": 2,
-                "fill": True,
-                "fillOpacity": 0.05,
-            },
-        ).add_to(drawn_group)
-
-    # add draw controls so the user can tweak the boxes and export them
     Draw(
-        export=True,
-        filename=args.json_name,
-        feature_group=drawn_group,
+        export=False,
+        filename="bboxes.json",
+        feature_group=drawn,
         draw_options={
             "polyline": False,
             "polygon": False,
@@ -115,12 +127,12 @@ def main() -> None:
         },
     ).add_to(m)
 
+    GridPlugin(grid, drawn, grid_size).add_to(m)
     folium.LayerControl().add_to(m)
 
-    out = Path(args.output)
-    m.save(out)
-    print(f"Map saved to {out.resolve()}")
-    print("Open the HTML file and use the Export button to save the boxes.")
+    Path(output).write_text(Figure().add_child(m).render())
+    print(f"Map saved to {Path(output).resolve()}")
+    print("Open the HTML file, draw a rectangle, adjust the grid size, and click Export.")
 
 
 if __name__ == "__main__":
