@@ -9,28 +9,31 @@ button on the map to download the boxes as a GeoJSON file.
 
 import argparse
 from pathlib import Path
+from typing import Tuple
 
 import folium
 from folium.plugins import Draw
 from shapely.geometry import box
+import yaml
+
+
+DEFAULT_CONFIG = "pipeline_config.yaml"
 
 
 def parse_args() -> argparse.Namespace:
+    """Return command line arguments."""
     parser = argparse.ArgumentParser(
         description="Preview a bounding box and divide it into a grid"
     )
     parser.add_argument(
-        "--bbox",
-        nargs=4,
-        type=float,
-        metavar=("xmin", "ymin", "xmax", "ymax"),
-        required=True,
-        help="Longitude/Latitude bounds",
+        "--config",
+        default=DEFAULT_CONFIG,
+        help="YAML config file containing a 'bbox' entry (default: %(default)s)",
     )
     parser.add_argument(
         "--grid-size",
         type=float,
-        default=0.5,
+        default=0.05,
         help="Size of the sub‑boxes in degrees (default: %(default)s)",
     )
     parser.add_argument(
@@ -65,7 +68,20 @@ def create_grid(bbox: tuple[float, float, float, float], step: float):
 def main() -> None:
     args = parse_args()
 
-    xmin, ymin, xmax, ymax = args.bbox
+    # Load bounding box from YAML config
+    cfg_path = Path(args.config)
+    if not cfg_path.exists():
+        raise FileNotFoundError(f"Config file '{cfg_path}' not found")
+
+    with open(cfg_path, "r") as f:
+        cfg = yaml.safe_load(f)
+
+    try:
+        bbox: Tuple[float, float, float, float] = tuple(cfg["bbox"])
+    except Exception as exc:
+        raise ValueError("Config must contain a 'bbox' entry") from exc
+
+    xmin, ymin, xmax, ymax = bbox
     center = [(ymin + ymax) / 2, (xmin + xmax) / 2]
 
     m = folium.Map(location=center, zoom_start=10)
@@ -73,7 +89,7 @@ def main() -> None:
     drawn_group = folium.FeatureGroup(name="BBoxes").add_to(m)
 
     # initial grid
-    for cell in create_grid(args.bbox, args.grid_size):
+    for cell in create_grid(bbox, args.grid_size):
         folium.GeoJson(
             cell.__geo_interface__,
             style_function=lambda _: {
