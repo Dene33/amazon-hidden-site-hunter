@@ -10,6 +10,7 @@ sub-bounding box.
 """
 
 from pathlib import Path
+import argparse
 import webbrowser
 
 import folium
@@ -21,17 +22,45 @@ from jinja2 import Template
 
 DEFAULT_OUTPUT = "preview_bbox_multi.html"
 DEFAULT_GRID_SIZE = 0.05  # degrees
+EPSILON = 1e-9
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="Interactively divide a bounding box into multiple cells"
+    )
+    parser.add_argument(
+        "--bbox",
+        nargs=4,
+        type=float,
+        metavar=("xmin", "ymin", "xmax", "ymax"),
+        help="Bounding box coordinates",
+    )
+    parser.add_argument(
+        "--grid-size",
+        type=float,
+        default=DEFAULT_GRID_SIZE,
+        help="Initial grid size in degrees",
+    )
+    parser.add_argument(
+        "--output",
+        default=DEFAULT_OUTPUT,
+        help=f"Output HTML file (default: {DEFAULT_OUTPUT})",
+    )
+    return parser.parse_args()
 
 
 class GridPlugin(MacroElement):
     """Add interactive grid controls to a Folium map."""
 
-    def __init__(self, grid_group, draw_group, grid_size):
+    def __init__(self, grid_group, draw_group, grid_size, epsilon, initial_bounds=None):
         super().__init__()
         self._name = "GridPlugin"
         self.grid_group = grid_group
         self.draw_group = draw_group
         self.grid_size = grid_size
+        self.epsilon = epsilon
+        self.initial_bounds = initial_bounds
         self._template = Template(
             """
             {% macro script(this, kwargs) %}
@@ -39,6 +68,8 @@ class GridPlugin(MacroElement):
             var drawn = {{this.draw_group.get_name()}};
             var grid = {{this.grid_group.get_name()}};
             var gridSize = {{this.grid_size}};
+            var eps = {{this.epsilon}};
+            var initialBounds = {{ this.initial_bounds|tojson if this.initial_bounds else 'null' }};
 
             function buildGrid(bounds) {
                 grid.clearLayers();
@@ -66,7 +97,10 @@ class GridPlugin(MacroElement):
                     for (var y = sw.lat; y < ne.lat; y += gridSize) {
                         var x2 = Math.min(x + gridSize, ne.lng);
                         var y2 = Math.min(y + gridSize, ne.lat);
-                        if ((x2 - x) >= gridSize && (y2 - y) >= gridSize) {
+                        var width = x2 - x;
+                        var height = y2 - y;
+                        if ((width + eps) >= gridSize &&
+                            (height + eps) >= gridSize) {
                             addRect(x, y, x2, y2);
                         }
                     }
@@ -99,6 +133,16 @@ class GridPlugin(MacroElement):
                 }
             }
 
+            if (initialBounds) {
+                var sw = L.latLng(initialBounds[0][0], initialBounds[0][1]);
+                var ne = L.latLng(initialBounds[1][0], initialBounds[1][1]);
+                var bounds = L.latLngBounds(sw, ne);
+                buildGrid(bounds);
+                drawn.clearLayers();
+                drawn.addLayer(L.rectangle(bounds));
+                map.fitBounds(bounds);
+            }
+
             document.getElementById('gs').addEventListener('input', function() {
                 gridSize = parseFloat(this.value);
                 refreshGrid();
@@ -111,7 +155,7 @@ class GridPlugin(MacroElement):
                         var b = l.getBounds();
                         var width = b.getEast() - b.getWest();
                         var height = b.getNorth() - b.getSouth();
-                        if (width >= gridSize && height >= gridSize) {
+                        if ((width + eps) >= gridSize && (height + eps) >= gridSize) {
                             cells.push({
                                 xmin: b.getWest(),
                                 ymin: b.getSouth(),
@@ -139,10 +183,21 @@ class GridPlugin(MacroElement):
 
 
 def main() -> None:
-    output = DEFAULT_OUTPUT
-    grid_size = DEFAULT_GRID_SIZE
+    args = parse_args()
+    output = args.output
+    grid_size = args.grid_size
 
-    m = folium.Map(location=[0, 0], zoom_start=2)
+    if args.bbox:
+        xmin, ymin, xmax, ymax = args.bbox
+        center_lat = (ymin + ymax) / 2
+        center_lon = (xmin + xmax) / 2
+        m = folium.Map(location=[center_lat, center_lon], zoom_start=10)
+        bbox_bounds = [[ymin, xmin], [ymax, xmax]]
+        folium.Rectangle(bbox_bounds, color="red", weight=2, fill=False).add_to(m)
+        initial_bounds = bbox_bounds
+    else:
+        m = folium.Map(location=[0, 0], zoom_start=2)
+        initial_bounds = None
     drawn = folium.FeatureGroup(name="DrawnBBox").add_to(m)
     grid = folium.FeatureGroup(name="Grid").add_to(m)
 
@@ -160,7 +215,7 @@ def main() -> None:
         },
     ).add_to(m)
 
-    GridPlugin(grid, drawn, grid_size).add_to(m)
+    GridPlugin(grid, drawn, grid_size, EPSILON, initial_bounds).add_to(m)
     folium.LayerControl().add_to(m)
 
     output_path = Path(output)
