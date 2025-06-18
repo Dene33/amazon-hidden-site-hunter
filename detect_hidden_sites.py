@@ -121,6 +121,7 @@ def fetch_gedi_points(
     threads: int = 4,
     verify_sizes: bool = True,  # Control size verification
     size_tolerance_pct: float = 0.5,  # Allow 0.5% difference in file size
+    force_download: bool = False,  # Automatically download without prompting
 ) -> gpd.GeoDataFrame:
     xmin, ymin, xmax, ymax = bbox
 
@@ -204,7 +205,10 @@ def fetch_gedi_points(
             f"{len(granules_to_download)} files need download "
             f"({to_dl_bytes/1_048_576:,.1f} MiB)"
         )
-        resp = input("Download missing files? [y/N] ").strip().lower()
+        if force_download:
+            resp = "y"
+        else:
+            resp = input("Download missing files? [y/N] ").strip().lower()
         if resp == "y":
             earthaccess.download(granules_to_download, download_dir, threads=threads)
         else:
