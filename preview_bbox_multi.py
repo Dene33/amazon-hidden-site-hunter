@@ -3,9 +3,10 @@
 
 Open a Folium map and draw a bounding box interactively. The chosen area
 is divided into a grid of smaller boxes which can be tweaked in the
-browser. Use the export button to download the grid as GeoJSON. Hold the
-Alt key while clicking a grid cell to remove it, and Ctrl-click to add it
-back. Exporting also prints bbox coordinates to the browser console.
+browser. Hold the Alt key while clicking a grid cell to remove it, and
+Ctrl-click to add it back. Use the export button to download a JSON file
+containing ``xmin``, ``ymin``, ``xmax`` and ``ymax`` for each selected
+sub-bounding box.
 """
 
 from pathlib import Path
@@ -102,19 +103,19 @@ class GridPlugin(MacroElement):
             });
 
             document.getElementById('exgrid').addEventListener('click', function() {
-                var feats = [];
-                var txt = '';
+                var cells = [];
                 grid.eachLayer(function(l) {
                     if (l.selected) {
-                        feats.push(l.toGeoJSON());
                         var b = l.getBounds();
-                        var data = {xmin: b.getWest(), ymin: b.getSouth(), xmax: b.getEast(), ymax: b.getNorth()};
-                        txt += `--bbox ${data.xmin.toFixed(6)} ${data.ymin.toFixed(6)} ${data.xmax.toFixed(6)} ${data.ymax.toFixed(6)}\n`;
+                        cells.push({
+                            xmin: b.getWest(),
+                            ymin: b.getSouth(),
+                            xmax: b.getEast(),
+                            ymax: b.getNorth()
+                        });
                     }
                 });
-                console.log(txt);
-                var geo = {type: 'FeatureCollection', features: feats};
-                var url = URL.createObjectURL(new Blob([JSON.stringify(geo)], {type: 'application/json'}));
+                var url = URL.createObjectURL(new Blob([JSON.stringify(cells)], {type: 'application/json'}));
                 var a = document.createElement('a');
                 a.href = url;
                 a.download = 'bboxes.json';
