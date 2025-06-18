@@ -4,7 +4,8 @@
 Open a Folium map and draw a bounding box interactively. The chosen area
 is divided into a grid of smaller boxes which can be tweaked in the
 browser. Use the export button to download the grid as GeoJSON. Hold the
-Ctrl key while clicking a grid cell to remove it.
+Alt key while clicking a grid cell to remove it, and Ctrl-click to add it
+back. Exporting also prints bbox coordinates to the browser console.
 """
 
 from pathlib import Path
@@ -48,9 +49,14 @@ class GridPlugin(MacroElement):
                         weight: 1,
                         fillOpacity: 0.05
                     });
+                    rect.selected = true;
                     rect.on('click', function(e) {
-                        if (e.originalEvent.ctrlKey) {
-                            grid.removeLayer(rect);
+                        if (e.originalEvent.altKey) {
+                            rect.selected = false;
+                            rect.setStyle({color: 'gray', fillOpacity: 0});
+                        } else if (e.originalEvent.ctrlKey) {
+                            rect.selected = true;
+                            rect.setStyle({color: 'blue', fillOpacity: 0.05});
                         }
                     });
                     rect.addTo(grid);
@@ -97,7 +103,16 @@ class GridPlugin(MacroElement):
 
             document.getElementById('exgrid').addEventListener('click', function() {
                 var feats = [];
-                grid.eachLayer(function(l) { feats.push(l.toGeoJSON()); });
+                var txt = '';
+                grid.eachLayer(function(l) {
+                    if (l.selected) {
+                        feats.push(l.toGeoJSON());
+                        var b = l.getBounds();
+                        var data = {xmin: b.getWest(), ymin: b.getSouth(), xmax: b.getEast(), ymax: b.getNorth()};
+                        txt += `--bbox ${data.xmin.toFixed(6)} ${data.ymin.toFixed(6)} ${data.xmax.toFixed(6)} ${data.ymax.toFixed(6)}\n`;
+                    }
+                });
+                console.log(txt);
                 var geo = {type: 'FeatureCollection', features: feats};
                 var url = URL.createObjectURL(new Blob([JSON.stringify(geo)], {type: 'application/json'}));
                 var a = document.createElement('a');
