@@ -28,6 +28,8 @@ from folium.plugins import HeatMap, MarkerCluster
 from matplotlib import cm
 from matplotlib.colors import LightSource
 from mpl_toolkits.axes_grid1 import make_axes_locatable
+from PIL import Image
+from sentinel_utils import save_image_with_metadata
 from pyproj import Transformer
 from rasterio.warp import Resampling, calculate_default_transform, reproject
 from scipy.interpolate import griddata
@@ -573,18 +575,20 @@ def visualize_gedi_points(points, bbox, outdir):
         label="Area of Interest",
     )
 
-    # ax.set_title('GEDI Ground Points')
-    # ax.set_xlabel('Longitude')
-    # ax.set_ylabel('Latitude')
-    # ax.legend()
+    ax.set_xlabel("Longitude")
+    ax.set_ylabel("Latitude")
+    ax.legend()
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin, ymax)
 
-    # ax.set_xlim(xmin, xmax)
-    # ax.set_ylim(ymin, ymax)
+    outdir = Path(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    out_path = outdir / "2_gedi_points.png"
 
-    # out_path = Path(outdir) / "2_gedi_points.png"
-    # plt.savefig(out_path, dpi=300, bbox_inches='tight')
-    # plt.close(fig)
-    # print(f"Saved GEDI points visualization to {out_path}")
+    fig.savefig(out_path, dpi=300, bbox_inches="tight")
+    plt.close(fig)
+    with Image.open(out_path) as img:
+        save_image_with_metadata(img, out_path, bbox=bbox)
 
     # ----- clean version for map overlays -----
     fig2, ax2 = plt.subplots(figsize=(8, 8))
@@ -592,9 +596,11 @@ def visualize_gedi_points(points, bbox, outdir):
     ax2.set_xlim(xmin, xmax)
     ax2.set_ylim(ymin, ymax)
     ax2.axis("off")
-    out_path_clean = Path(outdir) / "2_gedi_points_clean.png"
-    plt.savefig(out_path_clean, dpi=300, bbox_inches="tight", pad_inches=0)
+    out_path_clean = outdir / "2_gedi_points_clean.png"
+    fig2.savefig(out_path_clean, dpi=300, bbox_inches="tight", pad_inches=0)
     plt.close(fig2)
+    with Image.open(out_path_clean) as img:
+        save_image_with_metadata(img, out_path_clean, bbox=bbox)
     return True
 
 

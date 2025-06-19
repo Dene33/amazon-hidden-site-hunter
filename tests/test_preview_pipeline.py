@@ -15,7 +15,8 @@ pykrige_mod.ok = ok_mod
 sys.modules.setdefault("pykrige", pykrige_mod)
 sys.modules.setdefault("pykrige.ok", ok_mod)
 
-from preview_pipeline import create_interactive_map
+from preview_pipeline import create_interactive_map, visualize_gedi_points
+from sentinel_utils import read_bbox_metadata
 
 
 def _make_img(path: Path) -> None:
@@ -121,4 +122,19 @@ def test_create_interactive_map_ndvi_diff_clean(tmp_path: Path) -> None:
 
     html = (tmp_path / "interactive_map.html").read_text()
     assert "sentinel_ndvi_diff_clean" in html
+
+
+def test_visualize_gedi_points_basic(tmp_path: Path) -> None:
+    bbox = (0.0, 0.0, 1.0, 1.0)
+    points = [
+        (0.25, 0.25, 10.0),
+        (0.75, 0.75, 20.0),
+    ]
+
+    visualize_gedi_points(points, bbox, tmp_path)
+
+    for name in ["2_gedi_points.png", "2_gedi_points_clean.png"]:
+        p = tmp_path / name
+        assert p.exists()
+        assert read_bbox_metadata(p) == bbox
 
