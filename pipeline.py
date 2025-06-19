@@ -148,7 +148,16 @@ def step_fetch_sentinel(
 
         # ---- prepare RED/NIR + RGB
         def _masked(band: str, area_bbox):
-            arr = read_band(paths[band], bbox=area_bbox)
+            """Read ``band`` cropped to ``area_bbox`` and apply ``mask``.
+
+            ``read_band`` can return arrays with slightly different shapes for
+            the same bbox across bands due to rounding behaviour when
+            reprojecting.  This can lead to shape mismatches when applying a
+            mask derived from another band.  To guarantee consistent shapes we
+            resample every band to match the B04 grid using ``read_band_like``.
+            """
+
+            arr = read_band_like(paths[band], paths["B04"], bbox=area_bbox)
             return apply_mask(mask, arr)[0] if visualise else arr
 
         red, nir = (_masked("B04", sb), _masked("B08", sb))
@@ -207,16 +216,16 @@ def step_fetch_sentinel(
         if visualise:
             mask_c = _mask_for(bbox)
             b02_c, b03_c, b04_c = (
-                apply_mask(mask_c, read_band(paths["B02"], bbox=bbox))[0],
-                apply_mask(mask_c, read_band(paths["B03"], bbox=bbox))[0],
-                apply_mask(mask_c, read_band(paths["B04"], bbox=bbox))[0],
+                apply_mask(mask_c, read_band_like(paths["B02"], paths["B04"], bbox=bbox))[0],
+                apply_mask(mask_c, read_band_like(paths["B03"], paths["B04"], bbox=bbox))[0],
+                apply_mask(mask_c, read_band_like(paths["B04"], paths["B04"], bbox=bbox))[0],
             )
             tc_clean = base / f"sentinel_true_color_{label}_clean.jpg"
             save_true_color(b02_c, b03_c, b04_c, tc_clean, dpi=dpi, gain=5, bbox=bbox)
             console.log(f"[cyan]Wrote {tc_clean}")
 
-            red_c = apply_mask(mask_c, read_band(paths["B04"], bbox=bbox))[0]
-            nir_c = apply_mask(mask_c, read_band(paths["B08"], bbox=bbox))[0]
+            red_c = apply_mask(mask_c, read_band_like(paths["B04"], paths["B04"], bbox=bbox))[0]
+            nir_c = apply_mask(mask_c, read_band_like(paths["B08"], paths["B04"], bbox=bbox))[0]
             kndvi_c = compute_kndvi(red_c, nir_c)
             kndvi_clean = kndvi_c
             ndvi_clean = base / f"sentinel_kndvi_{label}_clean.png"
