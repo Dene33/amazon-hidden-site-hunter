@@ -109,6 +109,16 @@ def test_search_sentinel_rfc3339():
         assert kwargs["json"]["datetime"] == "2024-01-01T00:00:00Z/2024-12-31T23:59:59Z"
 
 
+def test_search_sentinel_grid_code_filter():
+    bbox = (-1, -1, 1, 1)
+    with patch("sentinel_utils.requests.post") as post:
+        post.return_value.json.return_value = {"features": []}
+        post.return_value.raise_for_status.return_value = None
+        search_sentinel2_item(bbox, "2024-01-01", "2024-12-31", grid_code="MGRS-20LLL")
+        args, kwargs = post.call_args
+        assert kwargs["json"]["query"]["grid:code"] == {"eq": "MGRS-20LLL"}
+
+
 def test_search_sentinel_http_error():
     bbox = (-1, -1, 1, 1)
     with patch("sentinel_utils.requests.post") as post:

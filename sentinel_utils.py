@@ -81,8 +81,21 @@ def search_sentinel2_item(
     time_start: str,
     time_end: str,
     cloud_cover: int = 20,
+    grid_code: str | None = None,
 ) -> dict | None:
-    """Search for a Sentinel-2 L2A item intersecting ``bbox``."""
+    """Search for a Sentinel-2 L2A item intersecting ``bbox``.
+
+    Parameters
+    ----------
+    bbox : tuple
+        Bounding box in WGS84.
+    time_start, time_end : str
+        Start and end date of the search range.
+    cloud_cover : int, default 20
+        Maximum allowed cloud cover percentage.
+    grid_code : str, optional
+        MGRS tile code (``grid:code``) to restrict the search to.
+    """
     query = {
         "collections": ["sentinel-2-l2a"],
         "bbox": list(bbox),
@@ -90,6 +103,8 @@ def search_sentinel2_item(
         "query": {"eo:cloud_cover": {"lt": cloud_cover}},
         "limit": 1,
     }
+    if grid_code is not None:
+        query["query"]["grid:code"] = {"eq": grid_code}
     try:
         r = requests.post(SEARCH_URL, json=query, timeout=60)
         r.raise_for_status()

@@ -262,11 +262,13 @@ def step_fetch_sentinel(
             high_cfg.get("time_end"),
             cfg.get("max_cloud", 20),
         )
+        grid_code = item_hi.get("properties", {}).get("grid:code") if item_hi else None
         item_lo = search_sentinel2_item(
             bbox,
             low_cfg.get("time_start"),
             low_cfg.get("time_end"),
             cfg.get("max_cloud", 20),
+            grid_code=grid_code,
         )
         if item_hi is None or item_lo is None:
             console.log("[red]No Sentinel‑2 images found for both periods")
