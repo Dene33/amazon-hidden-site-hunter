@@ -140,7 +140,7 @@ def step_fetch_sentinel(
 
         if visualise and save_full:
             mask_path = base / f"sentinel_cloud_mask_{label}.png"
-            save_mask_png(mask, mask_path, dpi=dpi)
+            save_mask_png(mask, mask_path, dpi=dpi, bbox=sb)
             console.log(
                 f"[cyan]Wrote {mask_path} "
                 f"({np.count_nonzero(mask):,} masked px)"
@@ -179,14 +179,14 @@ def step_fetch_sentinel(
 
         if visualise and save_full:
             tc_full = base / f"sentinel_true_color_{label}.jpg"
-            save_true_color(b02, b03, b04, tc_full, dpi=dpi,)
+            save_true_color(b02, b03, b04, tc_full, dpi=dpi, bbox=sb)
             if resize_vis:
                 resize_image(tc_full)
                 console.log(f"[cyan]Resized {tc_full}")
             console.log(f"[cyan]Wrote {tc_full}")
 
             ndvi_full = base / f"sentinel_kndvi_{label}.png"
-            save_index_png(kndvi, ndvi_full, dpi=dpi)
+            save_index_png(kndvi, ndvi_full, dpi=dpi, bbox=sb)
             if resize_vis:
                 resize_image(ndvi_full)
                 console.log(f"[cyan]Resized {ndvi_full}")
@@ -195,8 +195,8 @@ def step_fetch_sentinel(
             if swir is not None:
                 msi_full = base / f"sentinel_msi_{label}.png"
                 ndmi_full = base / f"sentinel_ndmi_{label}.png"
-                save_index_png(msi, msi_full, dpi=dpi)
-                save_index_png(ndmi, ndmi_full, dpi=dpi)
+                save_index_png(msi, msi_full, dpi=dpi, bbox=sb)
+                save_index_png(ndmi, ndmi_full, dpi=dpi, bbox=sb)
                 if resize_vis:
                     resize_image(msi_full)
                     resize_image(ndmi_full)
@@ -212,7 +212,7 @@ def step_fetch_sentinel(
                 apply_mask(mask_c, read_band(paths["B04"], bbox=bbox))[0],
             )
             tc_clean = base / f"sentinel_true_color_{label}_clean.jpg"
-            save_true_color(b02_c, b03_c, b04_c, tc_clean, dpi=dpi, gain=5)
+            save_true_color(b02_c, b03_c, b04_c, tc_clean, dpi=dpi, gain=5, bbox=bbox)
             console.log(f"[cyan]Wrote {tc_clean}")
 
             red_c = apply_mask(mask_c, read_band(paths["B04"], bbox=bbox))[0]
@@ -220,7 +220,7 @@ def step_fetch_sentinel(
             kndvi_c = compute_kndvi(red_c, nir_c)
             kndvi_clean = kndvi_c
             ndvi_clean = base / f"sentinel_kndvi_{label}_clean.png"
-            save_index_png(kndvi_c, ndvi_clean, dpi=dpi)
+            save_index_png(kndvi_c, ndvi_clean, dpi=dpi, bbox=bbox)
             console.log(f"[cyan]Wrote {ndvi_clean}")
 
             if "B11" in paths:
@@ -229,8 +229,8 @@ def step_fetch_sentinel(
                 msi_c = compute_msi(nir_c, swir_c)
                 msi_clean_path = base / f"sentinel_msi_{label}_clean.png"
                 ndmi_clean_path = base / f"sentinel_ndmi_{label}_clean.png"
-                save_index_png(msi_c, msi_clean_path, dpi=dpi)
-                save_index_png(ndmi_c, ndmi_clean_path, dpi=dpi)
+                save_index_png(msi_c, msi_clean_path, dpi=dpi, bbox=bbox)
+                save_index_png(ndmi_c, ndmi_clean_path, dpi=dpi, bbox=bbox)
                 msi_clean = msi_c
                 ndmi_clean = ndmi_c
                 console.log(f"[cyan]Wrote {msi_clean_path} and {ndmi_clean_path}")
@@ -306,16 +306,16 @@ def step_fetch_sentinel(
             ratio  = ndvi_hi / (ndvi_lo + 1e-6)
             diff_p = base / "sentinel_ndvi_diff.png"
             ratio_p= base / "sentinel_ndvi_ratio.png"
-            save_index_png(diff,  diff_p,  dpi=dpi)
-            save_index_png(ratio, ratio_p, dpi=dpi)
+            save_index_png(diff,  diff_p,  dpi=dpi, bbox=sb)
+            save_index_png(ratio, ratio_p, dpi=dpi, bbox=sb)
             if ndmi_hi is not None and ndmi_lo is not None:
                 ndmi_diff = ndmi_hi - ndmi_lo
                 ndmi_diff_p = base / "sentinel_ndmi_diff.png"
-                save_index_png(ndmi_diff, ndmi_diff_p, dpi=dpi)
+                save_index_png(ndmi_diff, ndmi_diff_p, dpi=dpi, bbox=sb)
             if msi_hi is not None and msi_lo is not None:
                 msi_diff = msi_hi - msi_lo
                 msi_diff_p = base / "sentinel_msi_diff.png"
-                save_index_png(msi_diff, msi_diff_p, dpi=dpi)
+                save_index_png(msi_diff, msi_diff_p, dpi=dpi, bbox=sb)
             if resize_vis:
                 resize_image(diff_p)
                 resize_image(ratio_p)
@@ -331,16 +331,16 @@ def step_fetch_sentinel(
             ratio_c = ndvi_hi_c / (ndvi_lo_c + 1e-6)
             diff_cp = base / "sentinel_ndvi_diff_clean.png"
             ratio_cp = base / "sentinel_ndvi_ratio_clean.png"
-            save_index_png(diff_c, diff_cp, dpi=dpi)
-            save_index_png(ratio_c, ratio_cp, dpi=dpi)
+            save_index_png(diff_c, diff_cp, dpi=dpi, bbox=bbox)
+            save_index_png(ratio_c, ratio_cp, dpi=dpi, bbox=bbox)
             if ndmi_hi_c is not None and ndmi_lo_c is not None:
                 ndmi_diff_c = ndmi_hi_c - ndmi_lo_c
                 ndmi_diff_cp = base / "sentinel_ndmi_diff_clean.png"
-                save_index_png(ndmi_diff_c, ndmi_diff_cp, dpi=dpi)
+                save_index_png(ndmi_diff_c, ndmi_diff_cp, dpi=dpi, bbox=bbox)
             if msi_hi_c is not None and msi_lo_c is not None:
                 msi_diff_c = msi_hi_c - msi_lo_c
                 msi_diff_cp = base / "sentinel_msi_diff_clean.png"
-                save_index_png(msi_diff_c, msi_diff_cp, dpi=dpi)
+                save_index_png(msi_diff_c, msi_diff_cp, dpi=dpi, bbox=bbox)
             console.log("[cyan]Wrote two-date NDVI diff / ratio (clean)")
 
         return result
@@ -530,6 +530,7 @@ def step_bare_earth(
             yi,
             zi,
             base / "3_bare_earth_surface_clean.png",
+            bbox=(xi[0, 0], yi.min(), xi[0, -1], yi.max()),
         )
     return xi, yi, zi
 
@@ -564,6 +565,7 @@ def step_residual_relief(
         save_residual_png(
             rrm,
             base / "4_residual_relief_clean.png",
+            bbox=(xi[0, 0], yi.min(), xi[0, -1], yi.max()),
         )
     return rrm
 
@@ -587,6 +589,7 @@ def step_detect_anomalies(cfg: Dict[str, Any], rrm, xi, yi, base: Path):
             xi,
             yi,
             base / "5_detected_anomalies_clean.png",
+            bbox=(xi[0, 0], yi.min(), xi[0, -1], yi.max()),
         )
     if cfg.get("save_json", True):
         out = base / "anomalies.geojson"

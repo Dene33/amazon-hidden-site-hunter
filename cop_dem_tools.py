@@ -13,6 +13,7 @@ from rasterio.mask import mask
 from shapely.geometry import box, mapping
 from rich.console import Console
 from PIL import Image, ImageDraw
+from sentinel_utils import save_image_with_metadata
 import matplotlib.pyplot as plt
 from rasterio.windows import from_bounds, transform as window_transform
 
@@ -299,12 +300,18 @@ def _dem_to_overlay(src: rio.DatasetReader, cmap: str = "terrain") -> tuple[np.n
     return rgba, bounds
 
 
-def save_dem_png(dem_path: Path, out_path: Path, cmap: str = "terrain") -> Path:
+def save_dem_png(
+    dem_path: Path,
+    out_path: Path,
+    cmap: str = "terrain",
+) -> Path:
     """Save a DEM as a transparent PNG suitable for Folium overlays."""
+
     with rio.open(dem_path) as src:
         rgba, _ = _dem_to_overlay(src, cmap=cmap)
+        bbox = (src.bounds.left, src.bounds.bottom, src.bounds.right, src.bounds.top)
     img = (rgba * 255).round().astype(np.uint8)
-    Image.fromarray(img).save(out_path)
+    save_image_with_metadata(Image.fromarray(img), out_path, bbox=bbox)
     console.log(f"[cyan]Wrote {out_path}")
     return out_path
 
@@ -316,6 +323,7 @@ def save_surface_png(
     out_path: Path,
     *,
     cmap: str = "terrain",
+    bbox: tuple[float, float, float, float] | None = None,
 ) -> Path:
     """Save an interpolated surface as a PNG overlay.
 
@@ -345,7 +353,9 @@ def save_surface_png(
     rgba[..., -1] = np.where(np.isnan(arr), 0, rgba[..., -1])
 
     img = (rgba * 255).round().astype(np.uint8)
-    Image.fromarray(img).save(out_path)
+    if bbox is None:
+        bbox = (xi[0, 0], yi.min(), xi[0, -1], yi.max())
+    save_image_with_metadata(Image.fromarray(img), out_path, bbox=bbox)
     console.log(f"[cyan]Wrote {out_path}")
     return out_path
 
@@ -355,6 +365,7 @@ def save_residual_png(
     out_path: Path,
     *,
     cmap: str = "RdBu_r",
+    bbox: tuple[float, float, float, float] | None = None,
 ) -> Path:
     """Save a residual relief model as a PNG overlay.
 
@@ -376,7 +387,10 @@ def save_residual_png(
     rgba[..., -1] = np.where(np.isnan(arr), 0, rgba[..., -1])
 
     img = (rgba * 255).round().astype(np.uint8)
-    Image.fromarray(img).save(out_path)
+    if bbox is not None:
+        save_image_with_metadata(Image.fromarray(img), out_path, bbox=bbox)
+    else:
+        save_image_with_metadata(Image.fromarray(img), out_path)
     console.log(f"[cyan]Wrote {out_path}")
     return out_path
 
@@ -389,6 +403,7 @@ def save_anomaly_points_png(
     *,
     color: tuple[int, int, int, int] = (255, 255, 0, 255),
     radius: int = 4,
+    bbox: tuple[float, float, float, float] | None = None,
 ) -> Path:
     """Save detected anomalies as small circle markers on a transparent PNG."""
 
@@ -410,7 +425,9 @@ def save_anomaly_points_png(
                 outline=(0, 0, 0, 255),
             )
 
-    img.save(out_path)
+    if bbox is None:
+        bbox = (xi[0, 0], yi.min(), xi[0, -1], yi.max())
+    save_image_with_metadata(img, out_path, bbox=bbox)
     console.log(f"[cyan]Wrote {out_path}")
     return out_path
 
