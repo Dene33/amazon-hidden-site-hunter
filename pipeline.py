@@ -263,8 +263,14 @@ def step_fetch_sentinel(
             cfg.get("max_cloud", 20),
         )
         grid_code = item_hi.get("properties", {}).get("grid:code") if item_hi else None
+        # Search the low-stress period using the same MGRS tile as the high
+        # period to guarantee identical spatial coverage.  Use the high
+        # period's bounding box as the search area rather than the user AOI to
+        # avoid returning imagery from a neighbouring tile if ``bbox`` straddles
+        # multiple tiles.
+        hi_bbox = tuple(item_hi.get("bbox", bbox)) if item_hi else bbox
         item_lo = search_sentinel2_item(
-            bbox,
+            hi_bbox,
             low_cfg.get("time_start"),
             low_cfg.get("time_end"),
             cfg.get("max_cloud", 20),
