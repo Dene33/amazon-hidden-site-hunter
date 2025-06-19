@@ -1,6 +1,8 @@
 # Example configuration for the refactored pipeline
 
-bbox: [-64.651794, -15.010122, -64.572144, -14.952414]
+bbox:
+  - [-64.651794, -15.010122, -64.572144, -14.952414]
+  - [-65.651794, -16.010122, -63.572144, -13.952414]
 out_dir: example_output
 
 fetch_data:
@@ -13,6 +15,7 @@ fetch_data:
     time_start: '2017-01-01'
     time_end: '2025-01-01'
     source_dirs: []
+    force_download: false
   visualize: true
 
 sentinel:

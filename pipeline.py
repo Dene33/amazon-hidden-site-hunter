@@ -422,6 +422,7 @@ def step_fetch_data(
             time_end=gedi_cfg.get("time_end"),
             cache_dir=ensure_dir(cache_dir),
             source_dirs=src_dirs,
+            force_download=gedi_cfg.get("force_download", False),
         )
         if cfg.get("visualize", True) and gedi is not None:
             points: List[Tuple[float, float, float]] = [
@@ -778,11 +779,11 @@ def step_interactive_map(
 # ---------------------------------------------------------------------------
 
 
-def run_pipeline(config: Dict[str, Any]):
-    base = ensure_dir(Path(config.get("out_dir", "pipeline_out")))
-    bbox = tuple(config.get("bbox", []))
-    if len(bbox) != 4:
-        raise ValueError("bbox must be provided with 4 coordinates")
+def _run_pipeline_single(
+    config: Dict[str, Any],
+    bbox: Tuple[float, float, float, float],
+    base: Path,
+) -> None:
     # Step 1 – fetch data
     dem_path, gedi = step_fetch_data(config.get("fetch_data", {}), bbox, base)
 
@@ -842,6 +843,25 @@ def run_pipeline(config: Dict[str, Any]):
     # Step 7 – export XYZ point clouds
     step_export_xyz(config.get("export_xyz", {}), bearth, dem_path, base)
 
+
+def run_pipeline(config: Dict[str, Any]) -> None:
+    out_dir = Path(config.get("out_dir", "pipeline_out"))
+    bbox_cfg = config.get("bbox", [])
+    if not bbox_cfg:
+        raise ValueError("bbox must be provided")
+
+    # Normalize to list of bboxes
+    if isinstance(bbox_cfg[0], (list, tuple)):
+        bboxes = [tuple(b) for b in bbox_cfg]
+    else:
+        bboxes = [tuple(bbox_cfg)]
+
+    for bbox in bboxes:
+        if len(bbox) != 4:
+            raise ValueError("bbox must have 4 coordinates")
+        name = "_".join(str(c) for c in bbox)
+        base = ensure_dir(out_dir / name)
+        _run_pipeline_single(config, bbox, base)
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description="Run configurable hidden-site pipeline")
