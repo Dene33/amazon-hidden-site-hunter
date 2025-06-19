@@ -116,20 +116,28 @@ def step_fetch_sentinel(
                        ["B01", "B05", "B06", "B07", "B8A", "B09", "B11"])
 
     #  produce cloud mask + true colour + kNDVI for a single period ----------
-    def _make_products(paths: Dict[str, Path], label: str):
+    def _make_products(paths: Dict[str, Path], label: str, ref_b04: Path):
+        """Return kNDVI and related products for a single period.
+
+        ``paths`` must include at least the Sentinel-2 band paths used by the
+        pipeline.  ``ref_b04`` is the B04 band from the *high* period and is
+        used as the spatial reference for every band so all outputs across
+        periods share the same grid.
+        """
+
         sb = paths["bounds"]
 
         # ---- cloud mask
         def _mask_for(area_bbox):
             if "SCL" in paths:
-                scl = read_band_like(paths["SCL"], paths["B04"],
+                scl = read_band_like(paths["SCL"], ref_b04,
                                      bbox=area_bbox, scale=1.0)
                 return cloud_mask(scl)
             # Hollstein fall-back
             needed = ["B01", "B02", "B03", "B05", "B06",
                       "B07", "B8A", "B09", "B11"]
             extras = [
-                read_band_like(paths[b], paths["B04"], bbox=area_bbox)
+                read_band_like(paths[b], ref_b04, bbox=area_bbox)
                 for b in needed if b in paths
             ]
             return hollstein_cloud_mask(*extras)
@@ -148,7 +156,16 @@ def step_fetch_sentinel(
 
         # ---- prepare RED/NIR + RGB
         def _masked(band: str, area_bbox):
-            arr = read_band(paths[band], bbox=area_bbox)
+            """Read ``band`` cropped to ``area_bbox`` and apply ``mask``.
+
+            ``read_band`` can return arrays with slightly different shapes for
+            the same bbox across bands due to rounding behaviour when
+            reprojecting.  This can lead to shape mismatches when applying a
+            mask derived from another band.  To guarantee consistent shapes we
+            resample every band to match ``ref_b04`` using ``read_band_like``.
+            """
+
+            arr = read_band_like(paths[band], ref_b04, bbox=area_bbox)
             return apply_mask(mask, arr)[0] if visualise else arr
 
         red, nir = (_masked("B04", sb), _masked("B08", sb))
@@ -159,7 +176,7 @@ def step_fetch_sentinel(
         )
 
         if "B11" in paths:
-            swir = read_band_like(paths["B11"], paths["B04"], bbox=sb, scale=1.0)
+            swir = read_band_like(paths["B11"], ref_b04, bbox=sb, scale=1.0)
             swir_mask = cloud_mask(swir)
             swir = apply_mask(swir_mask, swir)[0] if visualise else swir
         else:
@@ -207,16 +224,16 @@ def step_fetch_sentinel(
         if visualise:
             mask_c = _mask_for(bbox)
             b02_c, b03_c, b04_c = (
-                apply_mask(mask_c, read_band(paths["B02"], bbox=bbox))[0],
-                apply_mask(mask_c, read_band(paths["B03"], bbox=bbox))[0],
-                apply_mask(mask_c, read_band(paths["B04"], bbox=bbox))[0],
+                apply_mask(mask_c, read_band_like(paths["B02"], ref_b04, bbox=bbox))[0],
+                apply_mask(mask_c, read_band_like(paths["B03"], ref_b04, bbox=bbox))[0],
+                apply_mask(mask_c, read_band_like(paths["B04"], ref_b04, bbox=bbox))[0],
             )
             tc_clean = base / f"sentinel_true_color_{label}_clean.jpg"
             save_true_color(b02_c, b03_c, b04_c, tc_clean, dpi=dpi, gain=5, bbox=bbox)
             console.log(f"[cyan]Wrote {tc_clean}")
 
-            red_c = apply_mask(mask_c, read_band(paths["B04"], bbox=bbox))[0]
-            nir_c = apply_mask(mask_c, read_band(paths["B08"], bbox=bbox))[0]
+            red_c = apply_mask(mask_c, read_band_like(paths["B04"], ref_b04, bbox=bbox))[0]
+            nir_c = apply_mask(mask_c, read_band_like(paths["B08"], ref_b04, bbox=bbox))[0]
             kndvi_c = compute_kndvi(red_c, nir_c)
             kndvi_clean = kndvi_c
             ndvi_clean = base / f"sentinel_kndvi_{label}_clean.png"
@@ -224,7 +241,7 @@ def step_fetch_sentinel(
             console.log(f"[cyan]Wrote {ndvi_clean}")
 
             if "B11" in paths:
-                swir_c = apply_mask(mask_c, read_band_like(paths["B11"], paths["B04"], bbox=bbox, scale=1.0))[0]
+                swir_c = apply_mask(mask_c, read_band_like(paths["B11"], ref_b04, bbox=bbox, scale=1.0))[0]
                 ndmi_c = compute_ndmi(nir_c, swir_c)
                 msi_c = compute_msi(nir_c, swir_c)
                 msi_clean_path = base / f"sentinel_msi_{label}_clean.png"
@@ -245,11 +262,19 @@ def step_fetch_sentinel(
             high_cfg.get("time_end"),
             cfg.get("max_cloud", 20),
         )
+        grid_code = item_hi.get("properties", {}).get("grid:code") if item_hi else None
+        # Search the low-stress period using the same MGRS tile as the high
+        # period to guarantee identical spatial coverage.  Use the high
+        # period's bounding box as the search area rather than the user AOI to
+        # avoid returning imagery from a neighbouring tile if ``bbox`` straddles
+        # multiple tiles.
+        hi_bbox = tuple(item_hi.get("bbox", bbox)) if item_hi else bbox
         item_lo = search_sentinel2_item(
-            bbox,
+            hi_bbox,
             low_cfg.get("time_start"),
             low_cfg.get("time_end"),
             cfg.get("max_cloud", 20),
+            grid_code=grid_code,
         )
         if item_hi is None or item_lo is None:
             console.log("[red]No Sentinel‑2 images found for both periods")
@@ -289,7 +314,7 @@ def step_fetch_sentinel(
             ndmi_hi_c,
             msi_hi,
             msi_hi_c,
-        ) = _make_products(paths_hi, "high")
+        ) = _make_products(paths_hi, "high", paths_hi["B04"])
 
         (
             ndvi_lo,
@@ -298,7 +323,7 @@ def step_fetch_sentinel(
             ndmi_lo_c,
             msi_lo,
             msi_lo_c,
-        ) = _make_products(paths_lo, "low")
+        ) = _make_products(paths_lo, "low", paths_hi["B04"])
 
         # ---- two-date comparisons
         if visualise and save_full:
@@ -367,7 +392,7 @@ def step_fetch_sentinel(
     sb = bounds(next(iter(paths.values())))     
     paths["bounds"] = sb
 
-    _make_products(paths, "single")             # obeys `visualize` + `save_full`
+    _make_products(paths, "single", paths["B04"])             # obeys `visualize` + `save_full`
     return {"bounds": sb}
 
 
