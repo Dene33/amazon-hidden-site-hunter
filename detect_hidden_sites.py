@@ -22,6 +22,9 @@ from getpass import getpass
 import geopandas as gpd, numpy as np, pandas as pd, rasterio as rio
 from rasterio.warp import calculate_default_transform, reproject, Resampling
 from rich.console import Console
+from PIL import Image
+import io
+from sentinel_utils import save_image_with_metadata
 from rich.progress import track
 from scipy.interpolate import griddata
 from scipy.ndimage import gaussian_filter
@@ -546,7 +549,15 @@ def detect_anomalies(
         debug_dir = Path(debug_dir)
         debug_dir.mkdir(parents=True, exist_ok=True)
 
-        plt.figure(figsize=(8, 6))
+        bbox_img = (xi[0, 0], yi.min(), xi[0, -1], yi.max())
+
+        def _save_fig(fig: plt.Figure, path: Path, *, pad: float | None = None) -> None:
+            fig.savefig(path, dpi=150, bbox_inches="tight", pad_inches=pad)
+            plt.close(fig)
+            with Image.open(path) as img:
+                save_image_with_metadata(img, path, bbox=bbox_img)
+
+        fig = plt.figure(figsize=(8, 6))
         plt.imshow(
             rrm_smooth,
             extent=extent,
@@ -557,41 +568,27 @@ def detect_anomalies(
         plt.title("Smoothed Residual Relief")
         plt.xlabel("Longitude")
         plt.ylabel("Latitude")
-        plt.savefig(debug_dir / "rrm_smooth.png", dpi=150, bbox_inches="tight")
-        plt.close()
+        _save_fig(fig, debug_dir / "rrm_smooth.png")
 
         fig_c, ax_c = plt.subplots(figsize=(8, 8))
         ax_c.imshow(rrm_smooth, extent=extent, origin="upper", cmap="RdBu_r")
         ax_c.axis("off")
-        plt.savefig(
-            debug_dir / "rrm_smooth_clean.png",
-            dpi=150,
-            bbox_inches="tight",
-            pad_inches=0,
-        )
-        plt.close(fig_c)
+        _save_fig(fig_c, debug_dir / "rrm_smooth_clean.png", pad=0)
 
-        plt.figure(figsize=(8, 6))
+        fig = plt.figure(figsize=(8, 6))
         plt.imshow(mask, extent=extent, origin="upper", cmap="gray")
         plt.title("Threshold Mask")
         plt.xlabel("Longitude")
         plt.ylabel("Latitude")
-        plt.savefig(debug_dir / "threshold_mask.png", dpi=150, bbox_inches="tight")
-        plt.close()
+        _save_fig(fig, debug_dir / "threshold_mask.png")
 
         fig_c, ax_c = plt.subplots(figsize=(8, 8))
         ax_c.imshow(mask, extent=extent, origin="upper", cmap="gray")
         ax_c.axis("off")
-        plt.savefig(
-            debug_dir / "threshold_mask_clean.png",
-            dpi=150,
-            bbox_inches="tight",
-            pad_inches=0,
-        )
-        plt.close(fig_c)
+        _save_fig(fig_c, debug_dir / "threshold_mask_clean.png", pad=0)
 
         if blobs:
-            plt.figure(figsize=(8, 6))
+            fig = plt.figure(figsize=(8, 6))
             plt.imshow(
                 rrm_smooth,
                 extent=extent,
@@ -604,20 +601,13 @@ def detect_anomalies(
             plt.title("Detected Anomalies")
             plt.xlabel("Longitude")
             plt.ylabel("Latitude")
-            plt.savefig(debug_dir / "anomalies.png", dpi=150, bbox_inches="tight")
-            plt.close()
+            _save_fig(fig, debug_dir / "anomalies.png")
 
             fig_c, ax_c = plt.subplots(figsize=(8, 8))
             ax_c.imshow(rrm_smooth, extent=extent, origin="upper", cmap="RdBu_r")
             ax_c.scatter(xs, ys, c="yellow", edgecolor="black", s=30)
             ax_c.axis("off")
-            plt.savefig(
-                debug_dir / "anomalies_clean.png",
-                dpi=150,
-                bbox_inches="tight",
-                pad_inches=0,
-            )
-            plt.close(fig_c)
+            _save_fig(fig_c, debug_dir / "anomalies_clean.png", pad=0)
 
     return gpd.GeoDataFrame(blobs, crs="EPSG:4326") if blobs else gpd.GeoDataFrame(columns=["geometry", "score"], crs="EPSG:4326")
 

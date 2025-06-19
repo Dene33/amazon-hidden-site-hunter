@@ -23,6 +23,7 @@ from cop_dem_tools import (
     save_residual_png,
     save_anomaly_points_png,
 )
+from sentinel_utils import read_bbox_metadata
 
 
 def _create_tile(path: Path, value: float, bounds: tuple[float, float, float, float], size: int = 100) -> None:
@@ -100,6 +101,7 @@ def test_save_dem_png(tmp_path: Path):
     with Image.open(out) as img:
         assert img.size == (100, 100)
         assert img.mode == "RGBA"
+    assert read_bbox_metadata(out) == (0.0, 0.0, 1.0, 1.0)
 
 
 def test_dem_bounds(tmp_path: Path):
@@ -115,23 +117,25 @@ def test_save_surface_png(tmp_path: Path):
     xi_m, yi_m = np.meshgrid(xi, yi)
     zi = xi_m + yi_m
     out = tmp_path / "surf.png"
-    save_surface_png(xi_m, yi_m, zi, out)
+    save_surface_png(xi_m, yi_m, zi, out, bbox=(0, 0, 1, 1))
     assert out.exists()
     from PIL import Image
     with Image.open(out) as img:
         assert img.size == (xi_m.shape[1], yi_m.shape[0])
         assert img.mode == "RGBA"
+    assert read_bbox_metadata(out) == (0.0, 0.0, 1.0, 1.0)
 
 
 def test_save_residual_png(tmp_path: Path):
     rrm = np.array([[1, -1], [0, 2]], dtype=float)
     out = tmp_path / "rrm.png"
-    save_residual_png(rrm, out)
+    save_residual_png(rrm, out, bbox=(0, 0, 1, 1))
     assert out.exists()
     from PIL import Image
     with Image.open(out) as img:
         assert img.size == (rrm.shape[1], rrm.shape[0])
         assert img.mode == "RGBA"
+    assert read_bbox_metadata(out) == (0.0, 0.0, 1.0, 1.0)
 
 
 def test_save_anomaly_points_png(tmp_path: Path):
@@ -146,7 +150,7 @@ def test_save_anomaly_points_png(tmp_path: Path):
         crs="EPSG:4326",
     )
     out = tmp_path / "anom.png"
-    save_anomaly_points_png(gdf, xi_m, yi_m, out)
+    save_anomaly_points_png(gdf, xi_m, yi_m, out, bbox=(0, 0, 1, 1))
     assert out.exists()
     from PIL import Image
     with Image.open(out) as img:
@@ -156,3 +160,4 @@ def test_save_anomaly_points_png(tmp_path: Path):
         # north anomaly at top row, south anomaly at bottom row
         assert arr[0, 2, 3] > 0
         assert arr[-1, 2, 3] > 0
+    assert read_bbox_metadata(out) == (0.0, 0.0, 1.0, 1.0)

@@ -23,6 +23,7 @@ from sentinel_utils import (
     cloud_mask,
     save_mask_png,
     save_index_png,
+    read_bbox_metadata,
     search_sentinel2_item,
     download_bands,
     FILL_VALUE,
@@ -156,15 +157,17 @@ def test_save_with_dpi(tmp_path: Path):
 
     b = np.ones((5, 5), dtype=float)
     tc = tmp_path / "tc.jpg"
-    save_true_color(b, b, b, tc, dpi=222)
+    save_true_color(b, b, b, tc, dpi=222, bbox=(0, 0, 1, 1))
     with Image.open(tc) as img:
         assert img.info.get("dpi") == (222, 222)
+    assert read_bbox_metadata(tc) == (0.0, 0.0, 1.0, 1.0)
 
     idx = tmp_path / "idx.png"
-    save_index_png(b, idx, dpi=333)
+    save_index_png(b, idx, dpi=333, bbox=(0, 0, 1, 1))
     with Image.open(idx) as img:
         dpi = img.info.get("dpi")
         assert round(dpi[0]) == 333 and round(dpi[1]) == 333
+    assert read_bbox_metadata(idx) == (0.0, 0.0, 1.0, 1.0)
 
 
 def test_resize_image(tmp_path: Path):
@@ -264,10 +267,11 @@ def test_cloud_mask_and_save(tmp_path: Path):
     assert mask.dtype == bool
     assert mask[0, 1] and not mask[1, 0]
     png = tmp_path / "mask.png"
-    save_mask_png(mask, png, dpi=123)
+    save_mask_png(mask, png, dpi=123, bbox=(0, 0, 1, 1))
     with Image.open(png) as img:
         dpi_info = img.info.get("dpi")
         assert dpi_info and round(dpi_info[0]) == 123 and round(dpi_info[1]) == 123
+    assert read_bbox_metadata(png) == (0.0, 0.0, 1.0, 1.0)
 
 
 def test_hollstein_cloud_mask_basic():
@@ -297,19 +301,21 @@ def test_apply_mask():
 def test_save_index_png_all_nan(tmp_path: Path):
     arr = np.full((2, 2), np.nan, dtype=np.float32)
     out = tmp_path / "nan.png"
-    save_index_png(arr, out, dpi=120)
+    save_index_png(arr, out, dpi=120, bbox=(0, 0, 1, 1))
     assert out.exists()
     with Image.open(out) as img:
         dpi_info = img.info.get("dpi")
         assert dpi_info and round(dpi_info[0]) == 120
+    assert read_bbox_metadata(out) == (0.0, 0.0, 1.0, 1.0)
 
 
 def test_save_index_png_constant(tmp_path: Path):
     arr = np.ones((2, 2), dtype=np.float32) * 0.5
     out = tmp_path / "const.png"
-    save_index_png(arr, out, dpi=180)
+    save_index_png(arr, out, dpi=180, bbox=(0, 0, 1, 1))
     with Image.open(out) as img:
         dpi_info = img.info.get("dpi")
         assert dpi_info and round(dpi_info[0]) == 180
         pix = np.array(img)
         assert pix.var() >= 0
+    assert read_bbox_metadata(out) == (0.0, 0.0, 1.0, 1.0)

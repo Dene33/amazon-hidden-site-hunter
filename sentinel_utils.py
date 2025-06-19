@@ -11,7 +11,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import rasterio as rio
 import requests
-from PIL import Image
+from PIL import Image, PngImagePlugin
+import json
 from rich.console import Console
 
 SEARCH_URL = "https://earth-search.aws.element84.com/v1/search"
@@ -19,6 +20,53 @@ SEARCH_URL = "https://earth-search.aws.element84.com/v1/search"
 console = Console()
 
 FILL_VALUE = np.nan
+
+
+def save_image_with_metadata(
+    img: Image.Image,
+    path: Path,
+    *,
+    bbox: tuple[float, float, float, float] | None = None,
+    **kwargs,
+) -> None:
+    """Save ``img`` to ``path`` embedding ``bbox`` as metadata if provided."""
+
+    if bbox is not None:
+        bbox_json = json.dumps([float(x) for x in bbox])
+        suffix = path.suffix.lower()
+        if suffix == ".png":
+            info = PngImagePlugin.PngInfo()
+            info.add_text("bounds", bbox_json)
+            img.save(path, pnginfo=info, **kwargs)
+            return
+        elif suffix in {".jpg", ".jpeg"}:
+            exif = img.getexif()
+            exif[270] = bbox_json  # ImageDescription
+            img.save(path, exif=exif.tobytes(), **kwargs)
+            return
+
+    img.save(path, **kwargs)
+
+
+def read_bbox_metadata(path: Path) -> tuple[float, float, float, float] | None:
+    """Return the bounding box stored in ``path`` if present."""
+
+    with Image.open(path) as img:
+        suffix = path.suffix.lower()
+        if suffix == ".png":
+            bbox_str = img.info.get("bounds")
+        else:
+            exif = img.getexif()
+            bbox_str = exif.get(270)
+
+    if bbox_str:
+        try:
+            data = json.loads(bbox_str)
+            if isinstance(data, (list, tuple)) and len(data) == 4:
+                return tuple(float(x) for x in data)
+        except Exception:
+            return None
+    return None
 
 
 def _to_rfc3339(date: str, end: bool = False) -> str:
@@ -411,10 +459,16 @@ def mask_clouds(
     return apply_mask(mask, *bands, fill_value=fill_value)
 
 
-def save_mask_png(mask: np.ndarray, path: Path, dpi: int = 150) -> None:
-    """Save a binary cloud mask as an image."""
+def save_mask_png(
+    mask: np.ndarray,
+    path: Path,
+    dpi: int = 150,
+    bbox: tuple[float, float, float, float] | None = None,
+) -> None:
+    """Save a binary cloud mask as an image with optional ``bbox`` metadata."""
 
-    plt.imsave(path, mask.astype(float), cmap="gray", dpi=dpi)
+    img = Image.fromarray((mask.astype(float) * 255).astype(np.uint8))
+    save_image_with_metadata(img, path, bbox=bbox, dpi=(dpi, dpi))
 
 
 
@@ -427,6 +481,7 @@ def save_true_color(
     gain: float = 2.5,
     quality: int = 95,
     dpi: int = 150,
+    bbox: tuple[float, float, float, float] | None = None,
 ) -> None:
     """
     Save a true-colour image, painting all no-data / cloudy pixels neon-purple.
@@ -443,6 +498,8 @@ def save_true_color(
         JPEG quality when saving as JPEG.
     dpi : int, default 150
         Resolution metadata written to the file.
+    bbox : tuple of float, optional
+        Bounding box ``(xmin, ymin, xmax, ymax)`` written as metadata.
     """
     # --- stack channels (R=B04, G=B03, B=B02) and apply gain
     rgb_raw = np.stack([b04, b03, b02], axis=-1)
@@ -467,10 +524,15 @@ def save_true_color(
     # --- write with Pillow (PNG comes out *without* gAMA/sRGB chunks)
     img = Image.fromarray((rgb * 255).astype(np.uint8), mode="RGB")
 
-    # Save as JPEG
     path_jpg = path.with_suffix(".jpg")
 
-    img.save(path_jpg, quality=quality, dpi=(dpi, dpi))
+    save_image_with_metadata(
+        img,
+        path_jpg,
+        bbox=bbox,
+        quality=quality,
+        dpi=(dpi, dpi),
+    )
 
 
 def save_index_png(
@@ -481,8 +543,15 @@ def save_index_png(
     vmax: float | None = None,
     dpi: int = 150,
     nodata_rgba: tuple[int, int, int, int] = (0, 0, 0, 0),   # transparent
+    bbox: tuple[float, float, float, float] | None = None,
 ) -> None:
-    """Save a float array (any range) using a Matplotlib colormap."""
+    """Save a float array (any range) using a Matplotlib colormap.
+
+    Parameters
+    ----------
+    bbox : tuple of float, optional
+        Bounding box ``(xmin, ymin, xmax, ymax)`` written as metadata.
+    """
 
     # If caller did not provide limits, deduce them (ignoring NaNs)
     if vmin is None or vmax is None:
@@ -503,7 +572,7 @@ def save_index_png(
     rgba[nodata_mask] = np.array(nodata_rgba) / 255.0
 
     img = Image.fromarray((rgba * 255).astype(np.uint8))
-    img.save(path, dpi=(dpi, dpi))
+    save_image_with_metadata(img, path, bbox=bbox, dpi=(dpi, dpi))
 
 
 def resize_image(
