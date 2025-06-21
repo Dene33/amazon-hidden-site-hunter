@@ -16,3 +16,4 @@ def test_build_map_draw(tmp_path: Path) -> None:
     out = html.read_text()
     assert "Esri World Imagery" in out
     assert "save-bbox-button" in out
+    assert "setupAltDelete" in out

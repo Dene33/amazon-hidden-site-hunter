@@ -120,8 +120,8 @@ def build_map(
         feature_group = f"drawnItems_{control_id}"
         js = f"""
         function setupAltDelete(layer) {{
-            layer.on('mousedown', function(e) {{
-                if (e.originalEvent.altKey) {{
+            layer.on('click', function(e) {{
+                if (e.originalEvent && e.originalEvent.altKey) {{
                     {feature_group}.removeLayer(layer);
                 }}
             }});
@@ -160,7 +160,11 @@ def build_map(
 
     folium.LayerControl().add_to(m)
 
-    m.save(output)
+    # Saving via folium.Map.save() sometimes results in a blank map when the
+    # generated HTML is opened directly. Rendering through a Figure avoids
+    # that issue.
+    # Use the map's existing Figure to preserve any custom JavaScript added
+    output.write_text(m.get_root().render())
     print(f"Map saved to {output.resolve()}")
     try:
         webbrowser.open(output.resolve().as_uri())
