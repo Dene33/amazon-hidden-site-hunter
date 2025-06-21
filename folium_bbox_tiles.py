@@ -4,6 +4,7 @@ import tempfile
 import webbrowser
 
 import folium
+from folium import plugins
 import numpy as np
 from PIL import Image
 
@@ -19,6 +20,7 @@ def build_map(
     *,
     mosaic: bool = False,
     sentinel_scale: float = 1.0,
+    draw_file: Path | None = None,
 ) -> None:
     """Create an interactive map from georeferenced images.
 
@@ -29,6 +31,10 @@ def build_map(
     ``sentinel_scale`` can be used to downscale PNG images whose filenames
     contain ``"sentinel"`` before adding them to the map.  JPEG images are left
     untouched.
+
+    When ``draw_file`` is provided, a drawing toolbar is added so rectangles can
+    be drawn and removed with ``Alt``-click. A Save button downloads the
+    resulting bounding boxes to ``draw_file`` in JSON format.
     """
     if not out_dir.exists():
         raise FileNotFoundError(out_dir)
@@ -80,7 +86,13 @@ def build_map(
 
     center = [(bounds_global[1] + bounds_global[3]) / 2,
               (bounds_global[0] + bounds_global[2]) / 2]
-    m = folium.Map(location=center, zoom_start=8, tiles="OpenStreetMap")
+    m = folium.Map(location=center, zoom_start=8, tiles=None)
+    folium.TileLayer(
+        "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+        name="Esri World Imagery",
+        attr="Esri",
+    ).add_to(m)
+    folium.TileLayer("OpenStreetMap", name="OpenStreetMap").add_to(m)
 
     for name, img_arr, overlay_bounds in overlays:
         folium.raster_layers.ImageOverlay(
@@ -90,9 +102,65 @@ def build_map(
             mercator_project=True,
         ).add_to(m)
 
+    if draw_file:
+        draw = plugins.Draw(
+            draw_options={
+                "polyline": False,
+                "polygon": False,
+                "circle": False,
+                "marker": False,
+                "circlemarker": False,
+                "rectangle": True,
+            },
+            edit_options={"edit": False, "remove": False},
+        )
+        draw.add_to(m)
+        map_id = m.get_name()
+        control_id = draw.get_name()
+        feature_group = f"drawnItems_{control_id}"
+        js = f"""
+        function setupAltDelete(layer) {{
+            layer.on('mousedown', function(e) {{
+                if (e.originalEvent.altKey) {{
+                    {feature_group}.removeLayer(layer);
+                }}
+            }});
+        }}
+        {feature_group}.eachLayer(setupAltDelete);
+        {map_id}.on('draw:created', function(e) {{
+            var layer = e.layer;
+            setupAltDelete(layer);
+        }});
+        var SaveControl = L.Control.extend({{
+            options: {{position: 'topleft'}},
+            onAdd: function() {{
+                var btn = L.DomUtil.create('button', 'save-bbox-button');
+                btn.innerHTML = 'Save';
+                L.DomEvent.on(btn, 'click', function() {{
+                    var bboxes = [];
+                    {feature_group}.eachLayer(function(l) {{
+                        if (l instanceof L.Rectangle) {{
+                            var b = l.getBounds();
+                            bboxes.push([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
+                        }}
+                    }});
+                    var data = JSON.stringify(bboxes, null, 2);
+                    var a = document.createElement('a');
+                    a.href = URL.createObjectURL(new Blob([data], {{type: 'application/json'}}));
+                    a.download = '{draw_file.name}';
+                    a.click();
+                    URL.revokeObjectURL(a.href);
+                }});
+                return btn;
+            }}
+        }});
+        new SaveControl().addTo({map_id});
+        """
+        m.get_root().script.add_child(folium.Element(js))
+
     folium.LayerControl().add_to(m)
 
-    output.write_text(folium.Figure().add_child(m).render())
+    m.save(output)
     print(f"Map saved to {output.resolve()}")
     try:
         webbrowser.open(output.resolve().as_uri())
@@ -113,12 +181,18 @@ def main() -> None:
         default=1.0,
         help='Scale factor for PNG images containing "sentinel" in their name',
     )
+    ap.add_argument(
+        '--draw-bboxes',
+        metavar='FILE',
+        help='Enable drawing rectangles that can be saved to FILE with a Save button',
+    )
     args = ap.parse_args()
     build_map(
         Path(args.out_dir),
         Path(args.output),
         mosaic=args.mosaic,
         sentinel_scale=args.sentinel_scale,
+        draw_file=Path(args.draw_bboxes) if args.draw_bboxes else None,
     )
 
 
