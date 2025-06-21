@@ -10,7 +10,7 @@ from PIL import Image
 from sentinel_utils import mosaic_images, read_bbox_metadata
 
 
-def build_map(out_dir: Path, output: Path) -> None:
+def build_map(out_dir: Path, output: Path, *, mosaic: bool = False) -> None:
     if not out_dir.exists():
         raise FileNotFoundError(out_dir)
 
@@ -24,24 +24,25 @@ def build_map(out_dir: Path, output: Path) -> None:
     overlays = []
 
     for name, paths in images_by_name.items():
-        if len(paths) == 1:
-            img_path = paths[0]
-        else:
+        if mosaic and len(paths) > 1:
             tmp = Path(tempfile.gettempdir()) / f"mosaic_{name}"
             mosaic_images(paths, tmp)
-            img_path = tmp
-        bbox = read_bbox_metadata(img_path)
-        if bbox is None:
-            continue
-        with Image.open(img_path) as img:
-            img_arr = np.array(img)
-        overlay_bounds = [[bbox[1], bbox[0]], [bbox[3], bbox[2]]]
-        overlays.append((name, img_arr, overlay_bounds))
+            paths = [tmp]
 
-        bounds_global[0] = min(bounds_global[0], bbox[0])
-        bounds_global[1] = min(bounds_global[1], bbox[1])
-        bounds_global[2] = max(bounds_global[2], bbox[2])
-        bounds_global[3] = max(bounds_global[3], bbox[3])
+        for idx, img_path in enumerate(paths, start=1):
+            bbox = read_bbox_metadata(img_path)
+            if bbox is None:
+                continue
+            with Image.open(img_path) as img:
+                img_arr = np.array(img)
+            overlay_bounds = [[bbox[1], bbox[0]], [bbox[3], bbox[2]]]
+            layer_name = name if len(paths) == 1 else f"{name} {idx}"
+            overlays.append((layer_name, img_arr, overlay_bounds))
+
+            bounds_global[0] = min(bounds_global[0], bbox[0])
+            bounds_global[1] = min(bounds_global[1], bbox[1])
+            bounds_global[2] = max(bounds_global[2], bbox[2])
+            bounds_global[3] = max(bounds_global[3], bbox[3])
 
     center = [(bounds_global[1] + bounds_global[3]) / 2,
               (bounds_global[0] + bounds_global[2]) / 2]
@@ -66,11 +67,14 @@ def build_map(out_dir: Path, output: Path) -> None:
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(description="Preview mosaiced bbox images on a Folium map")
+    ap = argparse.ArgumentParser(
+        description="Preview bbox images on a Folium map"
+    )
     ap.add_argument('out_dir', help='Directory containing bbox folders')
     ap.add_argument('-o', '--output', default='bbox_tiles.html', help='HTML output file')
+    ap.add_argument('--mosaic', action='store_true', help='Combine tiles with the same name before displaying')
     args = ap.parse_args()
-    build_map(Path(args.out_dir), Path(args.output))
+    build_map(Path(args.out_dir), Path(args.output), mosaic=args.mosaic)
 
 
 if __name__ == '__main__':
