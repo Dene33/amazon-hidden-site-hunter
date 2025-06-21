@@ -119,42 +119,44 @@ def build_map(
         control_id = draw.get_name()
         feature_group = f"drawnItems_{control_id}"
         js = f"""
-        function setupAltDelete(layer) {{
-            layer.on('click', function(e) {{
-                if (e.originalEvent && e.originalEvent.altKey) {{
-                    {feature_group}.removeLayer(layer);
+        setTimeout(function() {{
+            function setupAltDelete(layer) {{
+                layer.on('click', function(e) {{
+                    if (e.originalEvent && e.originalEvent.altKey) {{
+                        {feature_group}.removeLayer(layer);
+                    }}
+                }});
+            }}
+            {feature_group}.eachLayer(setupAltDelete);
+            {map_id}.on('draw:created', function(e) {{
+                var layer = e.layer;
+                setupAltDelete(layer);
+            }});
+            var SaveControl = L.Control.extend({{
+                options: {{position: 'topleft'}},
+                onAdd: function() {{
+                    var btn = L.DomUtil.create('button', 'save-bbox-button');
+                    btn.innerHTML = 'Save';
+                    L.DomEvent.on(btn, 'click', function() {{
+                        var bboxes = [];
+                        {feature_group}.eachLayer(function(l) {{
+                            if (l instanceof L.Rectangle) {{
+                                var b = l.getBounds();
+                                bboxes.push([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
+                            }}
+                        }});
+                        var data = JSON.stringify(bboxes, null, 2);
+                        var a = document.createElement('a');
+                        a.href = URL.createObjectURL(new Blob([data], {{type: 'application/json'}}));
+                        a.download = '{draw_file.name}';
+                        a.click();
+                        URL.revokeObjectURL(a.href);
+                    }});
+                    return btn;
                 }}
             }});
-        }}
-        {feature_group}.eachLayer(setupAltDelete);
-        {map_id}.on('draw:created', function(e) {{
-            var layer = e.layer;
-            setupAltDelete(layer);
-        }});
-        var SaveControl = L.Control.extend({{
-            options: {{position: 'topleft'}},
-            onAdd: function() {{
-                var btn = L.DomUtil.create('button', 'save-bbox-button');
-                btn.innerHTML = 'Save';
-                L.DomEvent.on(btn, 'click', function() {{
-                    var bboxes = [];
-                    {feature_group}.eachLayer(function(l) {{
-                        if (l instanceof L.Rectangle) {{
-                            var b = l.getBounds();
-                            bboxes.push([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
-                        }}
-                    }});
-                    var data = JSON.stringify(bboxes, null, 2);
-                    var a = document.createElement('a');
-                    a.href = URL.createObjectURL(new Blob([data], {{type: 'application/json'}}));
-                    a.download = '{draw_file.name}';
-                    a.click();
-                    URL.revokeObjectURL(a.href);
-                }});
-                return btn;
-            }}
-        }});
-        new SaveControl().addTo({map_id});
+            new SaveControl().addTo({map_id});
+        }}, 0);
         """
         m.get_root().script.add_child(folium.Element(js))
 
