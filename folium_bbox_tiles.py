@@ -11,13 +11,23 @@ from sentinel_utils import mosaic_images, read_bbox_metadata
 
 
 def build_map(out_dir: Path, output: Path, *, mosaic: bool = False) -> None:
+    """Create an interactive map from georeferenced images.
+
+    ``out_dir`` may either contain multiple bbox subdirectories or a single
+    directory of pre-combined images. When ``mosaic`` is True, images with the
+    same filename across bbox folders are merged before being displayed.
+    """
     if not out_dir.exists():
         raise FileNotFoundError(out_dir)
 
     bbox_dirs = [p for p in out_dir.iterdir() if p.is_dir()]
-    images_by_name = {}
-    for bdir in bbox_dirs:
-        for p in bdir.glob('*.[jp][pn]g'):
+    images_by_name: dict[str, list[Path]] = {}
+    if bbox_dirs:
+        for bdir in bbox_dirs:
+            for p in bdir.glob('*.[jp][pn]g'):
+                images_by_name.setdefault(p.name, []).append(p)
+    else:
+        for p in out_dir.glob('*.[jp][pn]g'):
             images_by_name.setdefault(p.name, []).append(p)
 
     bounds_global = [float('inf'), float('inf'), float('-inf'), float('-inf')]
@@ -70,7 +80,7 @@ def main() -> None:
     ap = argparse.ArgumentParser(
         description="Preview bbox images on a Folium map"
     )
-    ap.add_argument('out_dir', help='Directory containing bbox folders')
+    ap.add_argument('out_dir', help='Directory with bbox folders or combined images')
     ap.add_argument('-o', '--output', default='bbox_tiles.html', help='HTML output file')
     ap.add_argument('--mosaic', action='store_true', help='Combine tiles with the same name before displaying')
     args = ap.parse_args()
