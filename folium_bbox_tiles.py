@@ -160,11 +160,9 @@ def build_map(
 
     folium.LayerControl().add_to(m)
 
-    # Saving via folium.Map.save() sometimes results in a blank map when the
-    # generated HTML is opened directly. Rendering through a Figure avoids
-    # that issue.
-    # Use the map's existing Figure to preserve any custom JavaScript added
-    output.write_text(m.get_root().render())
+    # Save the map to ``output`` and open it in a browser. ``folium.Map.save``
+    # writes a fully self-contained HTML file with all required resources.
+    m.save(output)
     print(f"Map saved to {output.resolve()}")
     try:
         webbrowser.open(output.resolve().as_uri())
