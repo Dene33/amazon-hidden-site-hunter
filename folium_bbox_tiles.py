@@ -9,13 +9,26 @@ from PIL import Image
 
 from sentinel_utils import mosaic_images, read_bbox_metadata
 
+# Disable Pillow's decompression bomb check for large images
+Image.MAX_IMAGE_PIXELS = None
 
-def build_map(out_dir: Path, output: Path, *, mosaic: bool = False) -> None:
+
+def build_map(
+    out_dir: Path,
+    output: Path,
+    *,
+    mosaic: bool = False,
+    sentinel_scale: float = 1.0,
+) -> None:
     """Create an interactive map from georeferenced images.
 
     ``out_dir`` may either contain multiple bbox subdirectories or a single
     directory of pre-combined images. When ``mosaic`` is True, images with the
     same filename across bbox folders are merged before being displayed.
+
+    ``sentinel_scale`` can be used to downscale PNG images whose filenames
+    contain ``"sentinel"`` before adding them to the map.  JPEG images are left
+    untouched.
     """
     if not out_dir.exists():
         raise FileNotFoundError(out_dir)
@@ -44,6 +57,17 @@ def build_map(out_dir: Path, output: Path, *, mosaic: bool = False) -> None:
             if bbox is None:
                 continue
             with Image.open(img_path) as img:
+                if (
+                    sentinel_scale != 1.0
+                    and "sentinel" in img_path.name.lower()
+                    and img_path.suffix.lower() == ".png"
+                ):
+                    w, h = img.size
+                    new_size = (
+                        max(1, int(w * sentinel_scale)),
+                        max(1, int(h * sentinel_scale)),
+                    )
+                    img = img.resize(new_size, resample=Image.Resampling.BILINEAR)
                 img_arr = np.array(img)
             overlay_bounds = [[bbox[1], bbox[0]], [bbox[3], bbox[2]]]
             layer_name = name if len(paths) == 1 else f"{name} {idx}"
@@ -83,8 +107,19 @@ def main() -> None:
     ap.add_argument('out_dir', help='Directory with bbox folders or combined images')
     ap.add_argument('-o', '--output', default='bbox_tiles.html', help='HTML output file')
     ap.add_argument('--mosaic', action='store_true', help='Combine tiles with the same name before displaying')
+    ap.add_argument(
+        '--sentinel-scale',
+        type=float,
+        default=1.0,
+        help='Scale factor for PNG images containing "sentinel" in their name',
+    )
     args = ap.parse_args()
-    build_map(Path(args.out_dir), Path(args.output), mosaic=args.mosaic)
+    build_map(
+        Path(args.out_dir),
+        Path(args.output),
+        mosaic=args.mosaic,
+        sentinel_scale=args.sentinel_scale,
+    )
 
 
 if __name__ == '__main__':
