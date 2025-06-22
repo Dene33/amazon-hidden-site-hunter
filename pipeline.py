@@ -65,12 +65,23 @@ console = Console()
 # Default prompt for GPT analysis with bbox placeholders
 ARCHAEO_PROMPT = (
     "You are Archaeo\u2011GPT. Input: 1) bbox [$xmin, $ymin, $xmax, $ymax]"
-    " (xmin,ymin,xmax,ymax); 2) possible rasters NDVI, SMI, NDMI, DEM, \u0394DEM,"
-    " RX (+opt.) same grid; Workflow: check CRS; rescale layers; flag NDVI\u00b11.5\u03c3"
-    " with moisture; extract micro\u2011relief & \u0394DEM; RX\u22653\u03c3; fuse masks," 
+    " (xmin,ymin,xmax,ymax); 2) possible rasters $rasters same grid;"
+    " Workflow: check CRS; rescale layers; flag NDVI\u00b11.5\u03c3"
+    " with moisture; extract micro\u2011relief & \u0394DEM; RX\u22653\u03c3; fuse masks,"
     " score clusters; return human readable description of findings with lat, lon"
     " coordinates of detections of interest."
 )
+
+# Mapping from raster labels used in the prompt to image base names
+RASTER_IMAGE_MAP = {
+    "DEM_0": "1c_aw3d30_crop_hillshade",
+    "DEM_1": "1b_srtm_crop_hillshade",
+    "\u0394DEM": "4_residual_relief_clean",
+    "NDVI": "sentinel_kndvi_high_clean",
+    "SMI": "sentinel_msi_high_clean",
+    "NDMI": "sentinel_ndmi_high_clean",
+    "RX": "sentinel_ndvi_ratio_clean",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -837,6 +848,9 @@ def step_chatgpt(
         console.log(f"[red]Failed to import openai: {exc}")
         return
 
+    active_rasters = [label for label, img in RASTER_IMAGE_MAP.items() if img in names]
+    if "$rasters" in prompt:
+        prompt = prompt.replace("$rasters", ", ".join(active_rasters))
     prompt = (
         prompt.replace("$xmin", str(bbox[0]))
         .replace("$ymin", str(bbox[1]))
