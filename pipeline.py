@@ -848,7 +848,7 @@ def step_chatgpt(cfg: Dict[str, Any], base: Path) -> None:
         console.log(f"[red]OpenAI request failed: {exc}")
         return
 
-    result_path = base / "chatgpt_analysis.txt"
+    result_path = root / "chatgpt_analysis.txt"
     result = response.choices[0].message.content if response.choices else ""
     with open(result_path, "w") as f:
         f.write(result)
