@@ -819,14 +819,20 @@ def step_chatgpt(
         console.log("[red]No images specified for ChatGPT analysis")
         return
 
-    # Find matching files within the configured out_dir and its debug sub-dirs
+    # Look for images within this bbox folder and the global out_dir
+    search_dirs = [
+        base,
+        base / "debug",
+        out_root,
+        out_root / "debug",
+    ]
     candidates: List[Path] = []
     exts = (".png", ".jpg", ".jpeg")
     for name in names:
         found = False
-        for search_dir in (base, base / "debug"):
+        for sdir in search_dirs:
             for ext in exts:
-                pattern = str(search_dir / f"**/{name}{ext}")
+                pattern = str(sdir / f"**/{name}{ext}")
                 matches = glob(pattern, recursive=True)
                 if matches:
                     candidates.append(Path(matches[0]))
@@ -876,26 +882,23 @@ def step_chatgpt(
         else:
             console.log(f"[yellow]Image {img} not found")
 
+    result_path = base / "chatgpt_analysis.txt"
     try:
         response = openai.chat.completions.create(model=model, messages=messages)
+        result = response.choices[0].message.content if response.choices else ""
     except Exception as exc:  # pragma: no cover - network issues
         console.log(f"[red]OpenAI request failed: {exc}")
-        return
+        result = f"ERROR: {exc}"
 
-def _parse_chatgpt_detections(text: str) -> List[Tuple[float, float, float]]:
-    """Return [(lat, lon, score), ...] parsed from ChatGPT output."""
     import re
 
     pattern = re.compile(
-        r"ID\s*\d+\s+([\d.]+)\s*([NS]),\s*([\d.]+)\s*([EW])\s*score\s*=\s*([\d.]+)",
-        re.IGNORECASE,
+        r"ID\s*\d+.*?([\d.+-]+)\s*([NS]).*?([\d.+-]+)\s*([EW]).*?score\s*=\s*([\d.]+)",
+        re.IGNORECASE | re.DOTALL,
     )
     detections = []
-    for line in text.splitlines():
-        m = pattern.search(line)
-        if not m:
-            continue
-        lat_val, lat_dir, lon_val, lon_dir, score = m.groups()
+    for match in pattern.finditer(text):
+        lat_val, lat_dir, lon_val, lon_dir, score = match.groups()
         lat = float(lat_val) * (-1 if lat_dir.upper() == "S" else 1)
         lon = float(lon_val) * (-1 if lon_dir.upper() == "W" else 1)
         detections.append((lat, lon, float(score)))
