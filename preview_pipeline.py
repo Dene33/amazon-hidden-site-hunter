@@ -862,7 +862,7 @@ def create_interactive_map(
     include_full_sentinel=False,
     include_full_srtm=False,
     include_full_aw3d=False,
-    chatgpt_points=None,
+    chatgpt_points: list | None = None,
 ):
     """Create an interactive map with pipeline results.
 

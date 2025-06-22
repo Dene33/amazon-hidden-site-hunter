@@ -802,7 +802,7 @@ def step_export_xyz(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
 
 def step_chatgpt(
     cfg: Dict[str, Any], bbox: Tuple[float, float, float, float], base: Path
-) -> None:
+) -> List[Tuple[float, float, float]]:
     """Send images to OpenAI's model for analysis."""
 
     if not cfg.get("enabled", False):
@@ -880,13 +880,12 @@ def step_chatgpt(
         else:
             console.log(f"[yellow]Image {img} not found")
 
-    result_path = base / "chatgpt_analysis.txt"
     try:
         response = openai.chat.completions.create(model=model, messages=messages)
         result = response.choices[0].message.content if response.choices else ""
     except Exception as exc:  # pragma: no cover - network issues
         console.log(f"[red]OpenAI request failed: {exc}")
-        result = f"ERROR: {exc}"
+        return []
 
     import re
 
@@ -895,28 +894,20 @@ def step_chatgpt(
         re.IGNORECASE | re.DOTALL,
     )
     detections = []
-    for match in pattern.finditer(text):
+    
+    for match in pattern.finditer(result):
         lat_val, lat_dir, lon_val, lon_dir, score = match.groups()
         lat = float(lat_val) * (-1 if lat_dir.upper() == "S" else 1)
         lon = float(lon_val) * (-1 if lon_dir.upper() == "W" else 1)
         detections.append((lat, lon, float(score)))
-    return detections
 
-
-
-    chatgpt_file = base / "chatgpt_analysis.txt"
-    chatgpt_points = []
-    if chatgpt_file.exists():
-        chatgpt_points = _parse_chatgpt_detections(chatgpt_file.read_text())
-
-        chatgpt_points=chatgpt_points or None,
     result_path = base / "chatgpt_analysis.txt"
-    result = response.choices[0].message.content if response.choices else ""
     with open(result_path, "w") as f:
         f.write(result)
 
     console.log(f"[cyan]Wrote {result_path}")
 
+    return detections
 
 def step_interactive_map(
     cfg: Dict[str, Any],
@@ -925,6 +916,7 @@ def step_interactive_map(
     bbox,
     base: Path,
     sentinel_paths: Dict[str, Path] | None = None,
+    chatgpt_points: List[Tuple[float, float, float]] | None = None,
 ):
     if not cfg.get("enabled", True):
         return
@@ -943,6 +935,7 @@ def step_interactive_map(
         include_full_sentinel=include_full_sentinel,
         include_full_srtm=include_full_srtm,
         include_full_aw3d=include_full_aw3d,
+        chatgpt_points=chatgpt_points,
     )
 
 
@@ -1007,7 +1000,7 @@ def _run_pipeline_single(
 
 
     # Step 7 – analyse imagery with ChatGPT
-    step_chatgpt(config.get("chatgpt", {}), bbox, base)
+    chatgpt_point = step_chatgpt(config.get("chatgpt", {}), bbox, base)
 
     # Step 8 – interactive map
     step_interactive_map(
@@ -1017,6 +1010,7 @@ def _run_pipeline_single(
         bbox,
         base,
         sentinel_paths,
+        chatgpt_points=chatgpt_point,
     )
 
 
