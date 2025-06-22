@@ -862,6 +862,7 @@ def create_interactive_map(
     include_full_sentinel=False,
     include_full_srtm=False,
     include_full_aw3d=False,
+    chatgpt_points: list | None = None,
 ):
     """Create an interactive map with pipeline results.
 
@@ -888,6 +889,8 @@ def create_interactive_map(
         If ``True``, include SRTM hillshade overlays when available.
     include_full_aw3d : bool, default False
         If ``True``, include AW3D30 hillshade overlays when available.
+    chatgpt_points : list, optional
+        Detections parsed from ChatGPT output.
     """
     if anomalies is None and not Path(outdir).exists():
         print("No data for interactive map")
@@ -1021,6 +1024,7 @@ def create_interactive_map(
         anomalies=anomalies,
         bbox=bbox,
         image_bounds=image_bounds,
+        chatgpt_points=chatgpt_points,
     )
 
     output_path = outdir / "interactive_map.html"

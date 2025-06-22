@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import base64
+from glob import glob
+import os
 from typing import Any, Dict, List, Tuple
 
 import matplotlib.pyplot as plt
@@ -58,6 +61,29 @@ from sentinel_utils import (
 )
 
 console = Console()
+
+# Default prompt for GPT analysis with bbox placeholders
+ARCHAEO_PROMPT = (
+    "You are Archaeo-GPT. Input: 1) bbox [$xmin, $ymin, $xmax, $ymax]"
+    " (xmin,ymin,xmax,ymax); 2) possible rasters $rasters same grid;"
+    " Workflow: check CRS; rescale layers; flag NDVI\u00b11.5\u03c3 with moisture;"
+    " extract micro-relief & \u0394DEM; RX\u22653\u03c3; fuse masks, score clusters;"
+    " return human readable description of findings with lat, lon coordinates of"
+    " detections of interest. Output: Every 'header' (first line) of each"
+    " detection should be formated like this: `ID 1  $coordinate S, $coordinate W"
+    "   score = 9.4 `"
+)
+
+# Mapping from raster labels used in the prompt to image base names
+RASTER_IMAGE_MAP = {
+    "DEM_0": "1c_aw3d30_crop_hillshade",
+    "DEM_1": "1b_srtm_crop_hillshade",
+    "\u0394DEM": "4_residual_relief_clean",
+    "NDVI": "sentinel_kndvi_high_clean",
+    "SMI": "sentinel_msi_high_clean",
+    "NDMI": "sentinel_ndmi_high_clean",
+    "RX": "sentinel_ndvi_ratio_clean",
+}
 
 
 # ---------------------------------------------------------------------------
@@ -774,6 +800,115 @@ def step_export_xyz(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
     console.log(f"[cyan]Wrote {out_dem}")
 
 
+def step_chatgpt(
+    cfg: Dict[str, Any], bbox: Tuple[float, float, float, float], base: Path
+) -> List[Tuple[float, float, float]]:
+    """Send images to OpenAI's model for analysis."""
+
+    if not cfg.get("enabled", False):
+        return
+
+    console.rule("[bold green]Analyse images with ChatGPT")
+
+    names = cfg.get("images", [])
+    prompt = cfg.get("prompt", ARCHAEO_PROMPT)
+    model = cfg.get("model", "o3")
+    log_level = cfg.get("log_level")
+
+    if not names:
+        console.log("[red]No images specified for ChatGPT analysis")
+        return
+
+    # Look for images within this bbox folder and the global out_dir
+    search_dirs = [
+        base,
+        base / "debug"
+    ]
+    candidates: List[Path] = []
+    exts = (".png", ".jpg", ".jpeg")
+    for name in names:
+        found = False
+        for sdir in search_dirs:
+            for ext in exts:
+                pattern = str(sdir / f"**/{name}{ext}")
+                matches = glob(pattern, recursive=True)
+                if matches:
+                    candidates.append(Path(matches[0]))
+                    found = True
+                    break
+            if found:
+                break
+        if not found:
+            console.log(f"[yellow]Image {name} not found")
+
+    if log_level:
+        os.environ["OPENAI_LOG"] = str(log_level)
+
+    try:
+        import openai
+        if log_level:
+            from openai._utils._logs import setup_logging as _setup_logging
+            _setup_logging()
+    except Exception as exc:  # pragma: no cover - openai may not be installed in tests
+        console.log(f"[red]Failed to import openai: {exc}")
+        return
+
+    active_rasters = [label for label, img in RASTER_IMAGE_MAP.items() if img in names]
+    if "$rasters" in prompt:
+        prompt = prompt.replace("$rasters", ", ".join(active_rasters))
+    prompt = (
+        prompt.replace("$xmin", str(bbox[0]))
+        .replace("$ymin", str(bbox[1]))
+        .replace("$xmax", str(bbox[2]))
+        .replace("$ymax", str(bbox[3]))
+    )
+
+    messages = [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
+
+    for img in candidates:
+        if img.exists():
+            with open(img, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode("ascii")
+            messages[0]["content"].append(
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/{img.suffix.lstrip('.')};base64,{b64}"
+                    },
+                }
+            )
+        else:
+            console.log(f"[yellow]Image {img} not found")
+
+    try:
+        response = openai.chat.completions.create(model=model, messages=messages)
+        result = response.choices[0].message.content if response.choices else ""
+    except Exception as exc:  # pragma: no cover - network issues
+        console.log(f"[red]OpenAI request failed: {exc}")
+        return []
+
+    import re
+
+    pattern = re.compile(
+        r"ID\s*\d+.*?([\d.+-]+)\s*([NS]).*?([\d.+-]+)\s*([EW]).*?score\s*=\s*([\d.]+)",
+        re.IGNORECASE | re.DOTALL,
+    )
+    detections = []
+    
+    for match in pattern.finditer(result):
+        lat_val, lat_dir, lon_val, lon_dir, score = match.groups()
+        lat = float(lat_val) * (-1 if lat_dir.upper() == "S" else 1)
+        lon = float(lon_val) * (-1 if lon_dir.upper() == "W" else 1)
+        detections.append((lat, lon, float(score)))
+
+    result_path = base / "chatgpt_analysis.txt"
+    with open(result_path, "w") as f:
+        f.write(result)
+
+    console.log(f"[cyan]Wrote {result_path}")
+
+    return detections
+
 def step_interactive_map(
     cfg: Dict[str, Any],
     points,
@@ -781,6 +916,7 @@ def step_interactive_map(
     bbox,
     base: Path,
     sentinel_paths: Dict[str, Path] | None = None,
+    chatgpt_points: List[Tuple[float, float, float]] | None = None,
 ):
     if not cfg.get("enabled", True):
         return
@@ -799,6 +935,7 @@ def step_interactive_map(
         include_full_sentinel=include_full_sentinel,
         include_full_srtm=include_full_srtm,
         include_full_aw3d=include_full_aw3d,
+        chatgpt_points=chatgpt_points,
     )
 
 
@@ -855,7 +992,17 @@ def _run_pipeline_single(
     #         for geom, elev in zip(gedi.geometry, gedi["elev_lowestmode"])
     #     ]
 
-    # Step 5 – interactive map
+    # Step 5 – export surfaces for Blender
+    step_export_obj(config.get("export_obj", {}), bearth, dem_path, base)
+
+    # Step 6 – export XYZ point clouds
+    step_export_xyz(config.get("export_xyz", {}), bearth, dem_path, base)
+
+
+    # Step 7 – analyse imagery with ChatGPT
+    chatgpt_point = step_chatgpt(config.get("chatgpt", {}), bbox, base)
+
+    # Step 8 – interactive map
     step_interactive_map(
         config.get("interactive_map", {}),
         points,
@@ -863,13 +1010,8 @@ def _run_pipeline_single(
         bbox,
         base,
         sentinel_paths,
+        chatgpt_points=chatgpt_point,
     )
-
-    # Step 6 – export surfaces for Blender
-    step_export_obj(config.get("export_obj", {}), bearth, dem_path, base)
-
-    # Step 7 – export XYZ point clouds
-    step_export_xyz(config.get("export_xyz", {}), bearth, dem_path, base)
 
 
 def run_pipeline(config: Dict[str, Any]) -> None:
