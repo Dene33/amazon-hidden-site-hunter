@@ -62,6 +62,16 @@ from sentinel_utils import (
 
 console = Console()
 
+# Default prompt for GPT analysis with bbox placeholders
+ARCHAEO_PROMPT = (
+    "You are Archaeo\u2011GPT. Input: 1) bbox [$xmin, $ymin, $xmax, $ymax]"
+    " (xmin,ymin,xmax,ymax); 2) possible rasters NDVI, SMI, NDMI, DEM, \u0394DEM,"
+    " RX (+opt.) same grid; Workflow: check CRS; rescale layers; flag NDVI\u00b11.5\u03c3"
+    " with moisture; extract micro\u2011relief & \u0394DEM; RX\u22653\u03c3; fuse masks," 
+    " score clusters; return human readable description of findings with lat, lon"
+    " coordinates of detections of interest."
+)
+
 
 # ---------------------------------------------------------------------------
 # Utility helpers
@@ -777,7 +787,9 @@ def step_export_xyz(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
     console.log(f"[cyan]Wrote {out_dem}")
 
 
-def step_chatgpt(cfg: Dict[str, Any], base: Path) -> None:
+def step_chatgpt(
+    cfg: Dict[str, Any], bbox: Tuple[float, float, float, float], base: Path
+) -> None:
     """Send images to OpenAI's model for analysis."""
 
     if not cfg.get("enabled", False):
@@ -786,7 +798,7 @@ def step_chatgpt(cfg: Dict[str, Any], base: Path) -> None:
     console.rule("[bold green]Analyse images with ChatGPT")
 
     names = cfg.get("images", [])
-    prompt = cfg.get("prompt", "")
+    prompt = cfg.get("prompt", ARCHAEO_PROMPT)
     model = cfg.get("model", "o3")
     log_level = cfg.get("log_level")
 
@@ -824,6 +836,13 @@ def step_chatgpt(cfg: Dict[str, Any], base: Path) -> None:
     except Exception as exc:  # pragma: no cover - openai may not be installed in tests
         console.log(f"[red]Failed to import openai: {exc}")
         return
+
+    prompt = (
+        prompt.replace("$xmin", str(bbox[0]))
+        .replace("$ymin", str(bbox[1]))
+        .replace("$xmax", str(bbox[2]))
+        .replace("$ymax", str(bbox[3]))
+    )
 
     messages = [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
 
@@ -954,7 +973,7 @@ def _run_pipeline_single(
     step_export_xyz(config.get("export_xyz", {}), bearth, dem_path, base)
 
     # Step 8 – analyse imagery with ChatGPT
-    step_chatgpt(config.get("chatgpt", {}), base)
+    step_chatgpt(config.get("chatgpt", {}), bbox, base)
 
 
 def run_pipeline(config: Dict[str, Any]) -> None:

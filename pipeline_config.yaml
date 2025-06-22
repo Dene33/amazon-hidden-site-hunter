@@ -89,5 +89,5 @@ chatgpt:
   model: o3
   images:
     - sample
-  prompt: "Identify any man-made features in these images."
+  prompt: "You are Archaeo-GPT. Input: 1) bbox [$xmin, $ymin, $xmax, $ymax] (xmin,ymin,xmax,ymax); 2) possible rasters NDVI, SMI, NDMI, DEM, ΔDEM, RX (+opt.) same grid; Workflow: check CRS; rescale layers; flag NDVI±1.5σ with moisture; extract micro-relief & ΔDEM; RX≥3σ; fuse masks, score clusters; return human readable description of findings with lat, lon coordinates of detections of interest."
   log_level: info
