@@ -64,12 +64,14 @@ console = Console()
 
 # Default prompt for GPT analysis with bbox placeholders
 ARCHAEO_PROMPT = (
-    "You are Archaeo\u2011GPT. Input: 1) bbox [$xmin, $ymin, $xmax, $ymax]"
+    "You are Archaeo-GPT. Input: 1) bbox [$xmin, $ymin, $xmax, $ymax]"
     " (xmin,ymin,xmax,ymax); 2) possible rasters $rasters same grid;"
-    " Workflow: check CRS; rescale layers; flag NDVI\u00b11.5\u03c3"
-    " with moisture; extract micro\u2011relief & \u0394DEM; RX\u22653\u03c3; fuse masks,"
-    " score clusters; return human readable description of findings with lat, lon"
-    " coordinates of detections of interest."
+    " Workflow: check CRS; rescale layers; flag NDVI\u00b11.5\u03c3 with moisture;"
+    " extract micro-relief & \u0394DEM; RX\u22653\u03c3; fuse masks, score clusters;"
+    " return human readable description of findings with lat, lon coordinates of"
+    " detections of interest. Output: Every 'header' (first line) of each"
+    " detection should be formated like this: `ID 1  $coordinate S, $coordinate W"
+    "   score = 9.4 `"
 )
 
 # Mapping from raster labels used in the prompt to image base names
@@ -881,6 +883,33 @@ def step_chatgpt(
         console.log(f"[red]OpenAI request failed: {exc}")
         return
 
+def _parse_chatgpt_detections(text: str) -> List[Tuple[float, float, float]]:
+    """Return [(lat, lon, score), ...] parsed from ChatGPT output."""
+    import re
+
+    pattern = re.compile(
+        r"ID\s*\d+\s+([\d.]+)\s*([NS]),\s*([\d.]+)\s*([EW])\s*score\s*=\s*([\d.]+)",
+        re.IGNORECASE,
+    )
+    detections = []
+    for line in text.splitlines():
+        m = pattern.search(line)
+        if not m:
+            continue
+        lat_val, lat_dir, lon_val, lon_dir, score = m.groups()
+        lat = float(lat_val) * (-1 if lat_dir.upper() == "S" else 1)
+        lon = float(lon_val) * (-1 if lon_dir.upper() == "W" else 1)
+        detections.append((lat, lon, float(score)))
+    return detections
+
+
+
+    chatgpt_file = base / "chatgpt_analysis.txt"
+    chatgpt_points = []
+    if chatgpt_file.exists():
+        chatgpt_points = _parse_chatgpt_detections(chatgpt_file.read_text())
+
+        chatgpt_points=chatgpt_points or None,
     result_path = root / "chatgpt_analysis.txt"
     result = response.choices[0].message.content if response.choices else ""
     with open(result_path, "w") as f:
@@ -970,7 +999,17 @@ def _run_pipeline_single(
     #         for geom, elev in zip(gedi.geometry, gedi["elev_lowestmode"])
     #     ]
 
-    # Step 5 – interactive map
+    # Step 5 – export surfaces for Blender
+    step_export_obj(config.get("export_obj", {}), bearth, dem_path, base)
+
+    # Step 6 – export XYZ point clouds
+    step_export_xyz(config.get("export_xyz", {}), bearth, dem_path, base)
+
+
+    # Step 7 – analyse imagery with ChatGPT
+    step_chatgpt(config.get("chatgpt", {}), bbox, base)
+
+    # Step 8 – interactive map
     step_interactive_map(
         config.get("interactive_map", {}),
         points,
@@ -979,15 +1018,6 @@ def _run_pipeline_single(
         base,
         sentinel_paths,
     )
-
-    # Step 6 – export surfaces for Blender
-    step_export_obj(config.get("export_obj", {}), bearth, dem_path, base)
-
-    # Step 7 – export XYZ point clouds
-    step_export_xyz(config.get("export_xyz", {}), bearth, dem_path, base)
-
-    # Step 8 – analyse imagery with ChatGPT
-    step_chatgpt(config.get("chatgpt", {}), bbox, base)
 
 
 def run_pipeline(config: Dict[str, Any]) -> None:
