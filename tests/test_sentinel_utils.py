@@ -23,6 +23,8 @@ from sentinel_utils import (
     cloud_mask,
     save_mask_png,
     save_index_png,
+    save_image_with_metadata,
+    mosaic_images,
     read_bbox_metadata,
     search_sentinel2_item,
     download_bands,
@@ -329,3 +331,19 @@ def test_save_index_png_constant(tmp_path: Path):
         pix = np.array(img)
         assert pix.var() >= 0
     assert read_bbox_metadata(out) == (0.0, 0.0, 1.0, 1.0)
+
+
+def test_mosaic_images_simple(tmp_path: Path) -> None:
+    img1 = Image.new("RGB", (2, 2), color="red")
+    img2 = Image.new("RGB", (2, 2), color="blue")
+    p1 = tmp_path / "a.png"
+    p2 = tmp_path / "b.png"
+    save_image_with_metadata(img1, p1, bbox=(0, 0, 1, 1))
+    save_image_with_metadata(img2, p2, bbox=(1, 0, 2, 1))
+
+    out = tmp_path / "out.png"
+    mosaic_images([p1, p2], out)
+
+    with Image.open(out) as m:
+        assert m.size == (4, 2)
+    assert read_bbox_metadata(out) == (0.0, 0.0, 2.0, 1.0)

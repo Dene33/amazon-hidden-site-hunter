@@ -622,3 +622,56 @@ def resize_image(
         resized = img.resize(new_size, resample=resample)
         resized.save(dest)
     return dest
+
+
+def mosaic_images(paths: List[Path], out: Path) -> Path:
+    """Combine georeferenced images into a single mosaic.
+
+    ``paths`` must contain images saved via :func:`save_image_with_metadata` so
+    that bounding boxes are embedded in the files. The output image is written
+    to ``out`` with bounding box metadata covering the union of the inputs.
+    """
+
+    if not paths:
+        raise ValueError("no images provided")
+
+    # Load images and their bounds
+    imgs: List[Image.Image] = []
+    bounds = []
+    for p in paths:
+        bbox = read_bbox_metadata(p)
+        if bbox is None:
+            raise ValueError(f"missing bbox metadata for {p}")
+        img = Image.open(p).convert("RGBA")
+        imgs.append(img)
+        bounds.append(bbox)
+
+    # Determine overall bounding box
+    xmin = min(b[0] for b in bounds)
+    ymin = min(b[1] for b in bounds)
+    xmax = max(b[2] for b in bounds)
+    ymax = max(b[3] for b in bounds)
+
+    # Use pixel size from the first image
+    pw = (bounds[0][2] - bounds[0][0]) / imgs[0].width
+    ph = (bounds[0][3] - bounds[0][1]) / imgs[0].height
+
+    width = max(1, round((xmax - xmin) / pw))
+    height = max(1, round((ymax - ymin) / ph))
+    canvas = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+
+    for img, bbox in zip(imgs, bounds):
+        w = max(1, round((bbox[2] - bbox[0]) / pw))
+        h = max(1, round((bbox[3] - bbox[1]) / ph))
+        if img.size != (w, h):
+            img = img.resize((w, h), resample=Image.Resampling.BILINEAR)
+        dx = int(round((bbox[0] - xmin) / pw))
+        dy = int(round((ymax - bbox[3]) / ph))
+        canvas.alpha_composite(img, dest=(dx, dy))
+
+    img_out: Image.Image = canvas
+    if out.suffix.lower() in {".jpg", ".jpeg"}:
+        img_out = canvas.convert("RGB")
+
+    save_image_with_metadata(img_out, out, bbox=(xmin, ymin, xmax, ymax))
+    return out
