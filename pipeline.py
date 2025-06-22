@@ -7,6 +7,8 @@ from pathlib import Path
 import base64
 from glob import glob
 import os
+import re
+from chatgpt_parser import _parse_chatgpt_detections
 from typing import Any, Dict, List, Tuple
 
 import matplotlib.pyplot as plt
@@ -800,6 +802,8 @@ def step_export_xyz(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
     console.log(f"[cyan]Wrote {out_dem}")
 
 
+
+
 def step_chatgpt(
     cfg: Dict[str, Any], bbox: Tuple[float, float, float, float], base: Path
 ) -> List[Tuple[float, float, float]]:
@@ -887,19 +891,7 @@ def step_chatgpt(
         console.log(f"[red]OpenAI request failed: {exc}")
         return []
 
-    import re
-
-    pattern = re.compile(
-        r"ID\s*\d+.*?([\d.+-]+)\s*([NS]).*?([\d.+-]+)\s*([EW]).*?score\s*=\s*([\d.]+)",
-        re.IGNORECASE | re.DOTALL,
-    )
-    detections = []
-    
-    for match in pattern.finditer(result):
-        lat_val, lat_dir, lon_val, lon_dir, score = match.groups()
-        lat = float(lat_val) * (-1 if lat_dir.upper() == "S" else 1)
-        lon = float(lon_val) * (-1 if lon_dir.upper() == "W" else 1)
-        detections.append((lat, lon, float(score)))
+    detections = _parse_chatgpt_detections(result)
 
     result_path = base / "chatgpt_analysis.txt"
     with open(result_path, "w") as f:
