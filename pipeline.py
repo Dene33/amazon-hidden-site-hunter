@@ -819,13 +819,12 @@ def step_chatgpt(
         console.log("[red]No images specified for ChatGPT analysis")
         return
 
-    # Find matching files within the configured out_dir and its debug sub-dir
-    out_root = base.parent
+    # Find matching files within the configured out_dir and its debug sub-dirs
     candidates: List[Path] = []
     exts = (".png", ".jpg", ".jpeg")
     for name in names:
         found = False
-        for search_dir in (out_root, out_root / "debug"):
+        for search_dir in (base, base / "debug"):
             for ext in exts:
                 pattern = str(search_dir / f"**/{name}{ext}")
                 matches = glob(pattern, recursive=True)
@@ -910,7 +909,7 @@ def _parse_chatgpt_detections(text: str) -> List[Tuple[float, float, float]]:
         chatgpt_points = _parse_chatgpt_detections(chatgpt_file.read_text())
 
         chatgpt_points=chatgpt_points or None,
-    result_path = root / "chatgpt_analysis.txt"
+    result_path = base / "chatgpt_analysis.txt"
     result = response.choices[0].message.content if response.choices else ""
     with open(result_path, "w") as f:
         f.write(result)
