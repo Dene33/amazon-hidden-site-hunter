@@ -822,9 +822,7 @@ def step_chatgpt(
     # Look for images within this bbox folder and the global out_dir
     search_dirs = [
         base,
-        base / "debug",
-        out_root,
-        out_root / "debug",
+        base / "debug"
     ]
     candidates: List[Path] = []
     exts = (".png", ".jpg", ".jpeg")
