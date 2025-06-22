@@ -819,13 +819,13 @@ def step_chatgpt(
         console.log("[red]No images specified for ChatGPT analysis")
         return
 
-    # Find matching files within out_dir and its debug sub-dir
-    root = base.parent
+    # Find matching files within the configured out_dir and its debug sub-dir
+    out_root = base.parent
     candidates: List[Path] = []
     exts = (".png", ".jpg", ".jpeg")
     for name in names:
         found = False
-        for search_dir in (root, root / "debug"):
+        for search_dir in (out_root, out_root / "debug"):
             for ext in exts:
                 pattern = str(search_dir / f"**/{name}{ext}")
                 matches = glob(pattern, recursive=True)
