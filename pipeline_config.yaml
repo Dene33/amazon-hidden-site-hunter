@@ -86,6 +86,8 @@ export_xyz:
 
 chatgpt:
   enabled: false
+  model: o3
   images:
     - sample
   prompt: "Identify any man-made features in these images."
+  log_level: info

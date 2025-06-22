@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 import base64
 from glob import glob
+import os
 from typing import Any, Dict, List, Tuple
 
 import matplotlib.pyplot as plt
@@ -786,6 +787,8 @@ def step_chatgpt(cfg: Dict[str, Any], base: Path) -> None:
 
     names = cfg.get("images", [])
     prompt = cfg.get("prompt", "")
+    model = cfg.get("model", "o3")
+    log_level = cfg.get("log_level")
 
     if not names:
         console.log("[red]No images specified for ChatGPT analysis")
@@ -810,8 +813,14 @@ def step_chatgpt(cfg: Dict[str, Any], base: Path) -> None:
         if not found:
             console.log(f"[yellow]Image {name} not found")
 
+    if log_level:
+        os.environ["OPENAI_LOG"] = str(log_level)
+
     try:
         import openai
+        if log_level:
+            from openai._utils._logs import setup_logging as _setup_logging
+            _setup_logging()
     except Exception as exc:  # pragma: no cover - openai may not be installed in tests
         console.log(f"[red]Failed to import openai: {exc}")
         return
@@ -834,7 +843,7 @@ def step_chatgpt(cfg: Dict[str, Any], base: Path) -> None:
             console.log(f"[yellow]Image {img} not found")
 
     try:
-        response = openai.chat.completions.create(model="o3", messages=messages)
+        response = openai.chat.completions.create(model=model, messages=messages)
     except Exception as exc:  # pragma: no cover - network issues
         console.log(f"[red]OpenAI request failed: {exc}")
         return
