@@ -83,3 +83,9 @@ export_xyz:
   bare_earth_file: bare_earth.xyz
   dem_file: dem_crop.xyz
   scale: 0.01
+
+chatgpt:
+  enabled: false
+  images:
+    - sample
+  prompt: "Identify any man-made features in these images."

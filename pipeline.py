@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import argparse
 from pathlib import Path
+import base64
+from glob import glob
 from typing import Any, Dict, List, Tuple
 
 import matplotlib.pyplot as plt
@@ -774,6 +776,77 @@ def step_export_xyz(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
     console.log(f"[cyan]Wrote {out_dem}")
 
 
+def step_chatgpt(cfg: Dict[str, Any], base: Path) -> None:
+    """Send images to OpenAI's model for analysis."""
+
+    if not cfg.get("enabled", False):
+        return
+
+    console.rule("[bold green]Analyse images with ChatGPT")
+
+    names = cfg.get("images", [])
+    prompt = cfg.get("prompt", "")
+
+    if not names:
+        console.log("[red]No images specified for ChatGPT analysis")
+        return
+
+    # Find matching files within out_dir and its debug sub-dir
+    root = base.parent
+    candidates: List[Path] = []
+    exts = (".png", ".jpg", ".jpeg")
+    for name in names:
+        found = False
+        for search_dir in (root, root / "debug"):
+            for ext in exts:
+                pattern = str(search_dir / f"**/{name}{ext}")
+                matches = glob(pattern, recursive=True)
+                if matches:
+                    candidates.append(Path(matches[0]))
+                    found = True
+                    break
+            if found:
+                break
+        if not found:
+            console.log(f"[yellow]Image {name} not found")
+
+    try:
+        import openai
+    except Exception as exc:  # pragma: no cover - openai may not be installed in tests
+        console.log(f"[red]Failed to import openai: {exc}")
+        return
+
+    messages = [{"role": "user", "content": [{"type": "text", "text": prompt}]}]
+
+    for img in candidates:
+        if img.exists():
+            with open(img, "rb") as f:
+                b64 = base64.b64encode(f.read()).decode("ascii")
+            messages[0]["content"].append(
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/{img.suffix.lstrip('.')};base64,{b64}"
+                    },
+                }
+            )
+        else:
+            console.log(f"[yellow]Image {img} not found")
+
+    try:
+        response = openai.chat.completions.create(model="o3", messages=messages)
+    except Exception as exc:  # pragma: no cover - network issues
+        console.log(f"[red]OpenAI request failed: {exc}")
+        return
+
+    result_path = base / "chatgpt_analysis.txt"
+    result = response.choices[0].message.content if response.choices else ""
+    with open(result_path, "w") as f:
+        f.write(result)
+
+    console.log(f"[cyan]Wrote {result_path}")
+
+
 def step_interactive_map(
     cfg: Dict[str, Any],
     points,
@@ -870,6 +943,9 @@ def _run_pipeline_single(
 
     # Step 7 – export XYZ point clouds
     step_export_xyz(config.get("export_xyz", {}), bearth, dem_path, base)
+
+    # Step 8 – analyse imagery with ChatGPT
+    step_chatgpt(config.get("chatgpt", {}), base)
 
 
 def run_pipeline(config: Dict[str, Any]) -> None:
