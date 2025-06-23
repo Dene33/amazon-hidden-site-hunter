@@ -806,7 +806,7 @@ def step_export_xyz(cfg: Dict[str, Any], bearth, dem_path: Path, base: Path):
 
 def step_chatgpt(
     cfg: Dict[str, Any], bbox: Tuple[float, float, float, float], base: Path
-) -> List[Tuple[float, float, float]]:
+) -> List[Tuple[float, float, float, str]]:
     """Send images to OpenAI's model for analysis."""
 
     if not cfg.get("enabled", False):
@@ -908,7 +908,7 @@ def step_interactive_map(
     bbox,
     base: Path,
     sentinel_paths: Dict[str, Path] | None = None,
-    chatgpt_points: List[Tuple[float, float, float]] | None = None,
+    chatgpt_points: List[Tuple[float, float, float, str]] | None = None,
 ):
     if not cfg.get("enabled", True):
         return

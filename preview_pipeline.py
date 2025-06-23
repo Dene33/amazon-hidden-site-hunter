@@ -890,7 +890,7 @@ def create_interactive_map(
     include_full_aw3d : bool, default False
         If ``True``, include AW3D30 hillshade overlays when available.
     chatgpt_points : list, optional
-        Detections parsed from ChatGPT output.
+        Detections parsed from ChatGPT output as ``(lat, lon, score, description)`` tuples.
     """
     if anomalies is None and not Path(outdir).exists():
         print("No data for interactive map")

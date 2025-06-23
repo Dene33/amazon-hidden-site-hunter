@@ -46,11 +46,25 @@ def _parse_coordinate(token: str) -> float | None:
     return value
 
 
-def _parse_chatgpt_detections(text: str) -> List[Tuple[float, float, float]]:
-    detections: List[Tuple[float, float, float]] = []
-    for det in _DET_RE.findall(text):
-        body = re.sub(r"^ID\s*\d+\s*", "", det)
-        score_match = _SCORE_RE.search(det)
+def _parse_chatgpt_detections(text: str) -> List[Tuple[float, float, float, str]]:
+    """Parse detections from a ChatGPT response.
+
+    Each detection starts with a header like ``ID 1 ... score = X`` followed by an
+    optional description. The description continues until the next header or end
+    of text.
+    """
+
+    detections: List[Tuple[float, float, float, str]] = []
+
+    matches = list(_DET_RE.finditer(text))
+    for idx, m in enumerate(matches):
+        header = m.group(0)
+        start = m.end()
+        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
+        description = text[start:end].strip()
+
+        body = re.sub(r"^ID\s*\d+\s*", "", header)
+        score_match = _SCORE_RE.search(header)
         if not score_match:
             continue
         score = float(score_match.group(1))
@@ -60,5 +74,6 @@ def _parse_chatgpt_detections(text: str) -> List[Tuple[float, float, float]]:
             lat = _parse_coordinate(tokens[0])
             lon = _parse_coordinate(tokens[1])
             if lat is not None and lon is not None:
-                detections.append((lat, lon, score))
+                detections.append((lat, lon, score, description))
+
     return detections

@@ -445,7 +445,7 @@ def create_combined_map(
     image_bounds : dict, optional
         Mapping of image path to ``[[south, west], [north, east]]`` bounds.
     chatgpt_points : list, optional
-        List of ``(lat, lon, score)`` triples from ChatGPT analysis.
+        List of ``(lat, lon, score, description)`` tuples from ChatGPT analysis.
     """
     arch_dataframes = arch_dataframes or []
     lidar_df = lidar_df if lidar_df is not None else pd.DataFrame()
@@ -868,12 +868,17 @@ def create_combined_map(
     # Add ChatGPT detections if provided
     if chatgpt_points:
         gpt_fg = folium.FeatureGroup(name="ChatGPT Detections", show=True, control=True)
-        for idx, (lat, lon, score) in enumerate(chatgpt_points, 1):
+        for idx, (lat, lon, score, desc) in enumerate(chatgpt_points, 1):
+            popup_text = (
+                f"<b>ID {idx}</b><br>Score: {score:.1f}<br>Location: {lat:.6f}, {lon:.6f}"
+            )
+            if desc:
+                popup_text += f"<br>{desc}"
             folium.Marker(
                 location=[lat, lon],
                 icon=folium.Icon(color="blue", icon="flag"),
                 tooltip=f"AI Score: {score}",
-                popup=f"<b>ID {idx}</b><br>Score: {score:.1f}<br>Location: {lat:.6f}, {lon:.6f}",
+                popup=popup_text,
             ).add_to(gpt_fg)
         gpt_fg.add_to(m)
 
