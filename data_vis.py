@@ -878,7 +878,7 @@ def create_combined_map(
                 location=[lat, lon],
                 icon=folium.Icon(color="blue", icon="flag"),
                 tooltip=f"AI Score: {score}",
-                popup=popup_text,
+                popup=folium.Popup(popup_text, max_width=400),
             ).add_to(gpt_fg)
         gpt_fg.add_to(m)
 
