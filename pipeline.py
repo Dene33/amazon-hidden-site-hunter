@@ -300,9 +300,11 @@ def step_fetch_sentinel(
             and bbox[3] <= hi_bbox[3]
         ):
             console.log(
-                "[red]AOI spans multiple Sentinel-2 tiles; please split the area into smaller bboxes"
+                "[yellow]Sentinel data is not available for the whole AOI; continuing with partial coverage"
             )
-            return {}
+            console.log(
+                "[yellow]Try adjusting `max_cloud`, `time_start`, or `time_end` for better coverage"
+            )
         # Search the low-stress period using the same MGRS tile as the high
         # period to guarantee identical spatial coverage.  Use the high
         # period's bounding box as the search area rather than the user AOI to

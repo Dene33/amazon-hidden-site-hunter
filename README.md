@@ -1,11 +1,9 @@
 # amazon-hidden-site-hunter
 
 This project downloads and processes Sentinel-2 imagery and various DEM products
-for user-defined bounding boxes. The pipeline assumes each bbox falls entirely
-within a single Sentinel-2 MGRS tile.
+for user-defined bounding boxes.
 
-If a bbox spans multiple tiles, only a portion of the imagery would be fetched
-leading to cropped results. The pipeline now checks for this condition and stops
-with an error when the AOI extends beyond the bounds of the selected tile.
-Split large AOIs into smaller bboxes that match individual Sentinel-2 tiles to
-ensure complete coverage.
+If a bbox spans multiple Sentinel-2 tiles only the portion that lies inside the
+available tile will be downloaded. The pipeline logs a message in this case and
+continues processing with the partial data. Try adjusting `max_cloud` or the
+`time_start`/`time_end` values if full coverage is required.
