@@ -6,7 +6,9 @@ from typing import List, Tuple
 _DET_RE = re.compile(r"ID\s*\d+.*?score\s*=\s*\d+(?:\.\d+)?", re.IGNORECASE)
 _SCORE_RE = re.compile(r"score\s*=\s*([\d.]+)", re.IGNORECASE)
 _COORD_RE = re.compile(
-    r"[\-−–]?\d+(?:\.\d+)?(?:°(?:\s*\d+(?:\.\d+)?(?:'\s*\d+(?:\.\d+)?)?\")?)?\s*[NSEW]?",
+    r"[-−–]?\d+(?:\.\d+)?"  # degrees with optional sign
+    r"(?:\s*[°º]\s*(?:\d+(?:\.\d+)?\s*(?:[′'’]\s*\d+(?:\.\d+)?\s*(?:[\"″”])?)?)?)?"  # optional minutes/seconds
+    r"\s*[NSEW]?",
     re.UNICODE,
 )
 

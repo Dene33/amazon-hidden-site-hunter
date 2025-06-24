@@ -37,3 +37,18 @@ def test_parse_chatgpt_description():
     detections = _parse_chatgpt_detections(text)
     assert detections[0][3] == "First detection description."
     assert detections[1][3] == "Second detection."
+
+
+def test_parse_chatgpt_spacing_and_symbols():
+    text = (
+        "ID 1 12\u00b0 41 \u2032 35 \u2033 S, 63\u00b0 52 \u2032 03 \u2033 W score = 1\n"
+        "ID 2 12.6842 \u00b0 S, 63.8756 \u00b0 W score = 2\n"
+        "ID 3 12\u00b0 41\u2032 00.9\u2033 S, 63\u00b0 52\u2032 34.3\u2033 W score = 3\n"
+    )
+    detections = _parse_chatgpt_detections(text)
+    assert detections[0][:3] == pytest.approx((-12.693056, -63.8675, 1.0))
+    assert detections[1][:3] == pytest.approx((-12.6842, -63.8756, 2.0))
+    assert detections[2][0] == pytest.approx(-12.683583, rel=1e-6)
+    assert detections[2][1] == pytest.approx(-63.876194, rel=1e-6)
+    assert detections[2][2] == pytest.approx(3.0)
+
