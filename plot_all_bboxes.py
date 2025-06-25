@@ -89,14 +89,16 @@ def main():
             )
             rect.add_to(bbox_group)
             js = f"""
-            var rect_{idx} = {rect.get_name()};
-            var tooltip_{idx} = L.tooltip({{className: 'bbox-label'}}).setContent({json.dumps(name)});
-            rect_{idx}.on('mouseover', function(e) {{
-                tooltip_{idx}.setLatLng([{b[3]}, {b[0]}]).addTo({m.get_name()});
-            }});
-            rect_{idx}.on('mouseout', function(e) {{
-                {m.get_name()}.removeLayer(tooltip_{idx});
-            }});
+            setTimeout(function() {{
+                var rect_{idx} = {rect.get_name()};
+                var tooltip_{idx} = L.tooltip({{className: 'bbox-label'}}).setContent({json.dumps(name)});
+                rect_{idx}.on('mouseover', function(e) {{
+                    tooltip_{idx}.setLatLng([{b[3]}, {b[0]}]).addTo({m.get_name()});
+                }});
+                rect_{idx}.on('mouseout', function(e) {{
+                    {m.get_name()}.removeLayer(tooltip_{idx});
+                }});
+            }}, 0);
             """
             m.get_root().script.add_child(Element(js))
         bbox_group.add_to(m)
