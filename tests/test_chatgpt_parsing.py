@@ -52,3 +52,15 @@ def test_parse_chatgpt_spacing_and_symbols():
     assert detections[2][1] == pytest.approx(-63.876194, rel=1e-6)
     assert detections[2][2] == pytest.approx(3.0)
 
+
+def test_parse_chatgpt_ignores_summary():
+    text = (
+        "ID 1 10 S, 10 W score = 1\n"
+        "Details about site.\n"
+        "\n"
+        "Summary: nothing more."
+    )
+    detections = _parse_chatgpt_detections(text)
+    assert len(detections) == 1
+    assert detections[0][3] == "Details about site."
+
