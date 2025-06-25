@@ -23,10 +23,12 @@ FILL_VALUE = np.nan
 
 
 def _is_valid_tif(path: Path) -> bool:
-    """Return True if ``path`` can be read using rasterio."""
+    """Return True if ``path`` can be read entirely using rasterio."""
+
     try:
         with rio.open(path) as src:
-            src.read(1, window=src.window(0, 0, 1, 1))
+            for _, window in src.block_windows(1):
+                src.read(1, window=window)
         return True
     except Exception:
         return False
