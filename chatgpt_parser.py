@@ -64,6 +64,10 @@ def _parse_chatgpt_detections(text: str) -> List[Tuple[float, float, float, str]
         start = m.end()
         end = matches[idx + 1].start() if idx + 1 < len(matches) else len(text)
         description = text[start:end].strip()
+        if idx == len(matches) - 1:
+            # ChatGPT sometimes appends a summary after the last detection.
+            # Drop anything following the first blank line in the final block.
+            description = re.split(r"\n\s*\n", description, 1)[0].strip()
 
         body = re.sub(r"^ID\s*\d+\s*", "", header)
         score_match = _SCORE_RE.search(header)
