@@ -74,7 +74,7 @@ ARCHAEO_PROMPT = (
     " return human readable description of findings with lat, lon coordinates of"
     " detections of interest. Output: Every 'header' (first line) of each"
     " detection should be formated like this: `ID 1  $coordinate S, $coordinate W"
-    "   score = 9.4 `"
+    "   score = 9.4 ` Also make sure to output ALL the detections, not just a chunk of 3."
 )
 
 # Mapping from raster labels used in the prompt to image base names
