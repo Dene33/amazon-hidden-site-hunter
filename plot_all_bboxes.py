@@ -4,7 +4,8 @@ import re
 import pandas as pd
 import geopandas as gpd
 import folium
-from folium import plugins
+from folium import plugins, Element
+import json
 from data_vis import create_combined_map, load_reference_datasets
 
 DEFAULT_DIRS = [Path("pipeline_out")]
@@ -33,10 +34,12 @@ def main():
     bbox_dirs = list(find_bbox_folders(args.dirs))
 
     bboxes = []
+    bbox_infos = []
     anomaly_frames = []
     gpt_frames = []
     for folder, bbox in bbox_dirs:
         bboxes.append(bbox)
+        bbox_infos.append((folder.name, bbox))
         anom_path = folder / "anomalies.geojson"
         if anom_path.exists():
             try:
@@ -69,7 +72,7 @@ def main():
         if isinstance(child, folium.map.LayerControl):
             del m._children[key]
 
-    if bboxes:
+    if bbox_infos:
         xmin = min(b[0] for b in bboxes)
         ymin = min(b[1] for b in bboxes)
         xmax = max(b[2] for b in bboxes)
@@ -77,8 +80,25 @@ def main():
         center = [(ymin + ymax) / 2, (xmin + xmax) / 2]
         m.location = center
         bbox_group = folium.FeatureGroup(name="Bounding Boxes", show=True, control=True)
-        for b in bboxes:
-            folium.Rectangle([[b[1], b[0]], [b[3], b[2]]], color="red", fill=False, weight=2).add_to(bbox_group)
+        for idx, (name, b) in enumerate(bbox_infos):
+            rect = folium.Rectangle(
+                [[b[1], b[0]], [b[3], b[2]]],
+                color="red",
+                fill=False,
+                weight=2,
+            )
+            rect.add_to(bbox_group)
+            js = f"""
+            var rect_{idx} = {rect.get_name()};
+            var tooltip_{idx} = L.tooltip({{className: 'bbox-label'}}).setContent({json.dumps(name)});
+            rect_{idx}.on('mouseover', function(e) {{
+                tooltip_{idx}.setLatLng([{b[3]}, {b[0]}]).addTo({m.get_name()});
+            }});
+            rect_{idx}.on('mouseout', function(e) {{
+                {m.get_name()}.removeLayer(tooltip_{idx});
+            }});
+            """
+            m.get_root().script.add_child(Element(js))
         bbox_group.add_to(m)
         m.fit_bounds([[ymin, xmin], [ymax, xmax]])
 
