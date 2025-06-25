@@ -22,6 +22,18 @@ console = Console()
 FILL_VALUE = np.nan
 
 
+def _is_valid_tif(path: Path) -> bool:
+    """Return True if ``path`` can be read entirely using rasterio."""
+
+    try:
+        with rio.open(path) as src:
+            for _, window in src.block_windows(1):
+                src.read(1, window=window)
+        return True
+    except Exception:
+        return False
+
+
 def save_image_with_metadata(
     img: Image.Image,
     path: Path,
@@ -196,8 +208,14 @@ def download_bands(
         for d in search_dirs:
             p = Path(d) / filename
             if p.exists():
-                found = p
-                break
+                if _is_valid_tif(p):
+                    found = p
+                    break
+                console.log(f"[yellow]Corrupt band file {p}; re-downloading")
+                try:
+                    p.unlink()
+                except Exception:
+                    pass
 
         if found is not None:
             console.log(f"[green]Using existing band file → {found}")
@@ -206,12 +224,23 @@ def download_bands(
 
         url = feature["assets"][asset]["href"]
         local = download_dir / filename
-        console.log(f"Fetching {url} → {local}")
-        with requests.get(url, stream=True, timeout=60) as r:
-            r.raise_for_status()
-            with open(local, "wb") as f:
-                for chunk in r.iter_content(1_048_576):
-                    f.write(chunk)
+        for attempt in range(2):
+            console.log(f"Fetching {url} → {local}")
+            with requests.get(url, stream=True, timeout=60) as r:
+                r.raise_for_status()
+                with open(local, "wb") as f:
+                    for chunk in r.iter_content(1_048_576):
+                        f.write(chunk)
+            if _is_valid_tif(local):
+                break
+            console.log(f"[red]Validation failed for {local}; retrying")
+            try:
+                local.unlink()
+            except Exception:
+                pass
+        else:
+            raise RuntimeError(f"Failed to download valid band file: {local}")
+
         paths[band] = local
 
     return paths

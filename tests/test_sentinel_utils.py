@@ -217,7 +217,8 @@ def test_download_bands_unique_names(tmp_path: Path) -> None:
     }
 
     with patch("sentinel_utils.requests.get", return_value=DummyResponse()):
-        paths = download_bands(feature, ["B02"], tmp_path)
+        with patch("sentinel_utils._is_valid_tif", return_value=True):
+            paths = download_bands(feature, ["B02"], tmp_path)
 
     expected = "item123_0.00000_1.00000_2.00000_3.00000_20240430_B02.tif"
     assert paths["B02"].name == expected
