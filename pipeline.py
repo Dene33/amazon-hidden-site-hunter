@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import rasterio as rio
 import yaml
 from rich.console import Console
@@ -661,6 +662,18 @@ def step_detect_anomalies(cfg: Dict[str, Any], rrm, xi, yi, base: Path):
         out = base / "anomalies.geojson"
         anomalies.to_file(out, driver="GeoJSON")
         console.print(f"[bold cyan]Saved anomalies → {out}")
+    # Always save a CSV copy for easy downstream access
+    if anomalies is not None and not anomalies.empty:
+        csv_out = base / "anomalies.csv"
+        df = pd.DataFrame(
+            {
+                "latitude": anomalies.geometry.y,
+                "longitude": anomalies.geometry.x,
+                "score": anomalies.get("score"),
+            }
+        )
+        df.to_csv(csv_out, index=False)
+        console.print(f"[bold cyan]Saved anomalies → {csv_out}")
     return anomalies
 
 
@@ -911,6 +924,15 @@ def step_chatgpt(
         f.write(result)
 
     console.log(f"[cyan]Wrote {result_path}")
+
+    if detections:
+        csv_out = base / "chatgpt_points.csv"
+        df = pd.DataFrame(
+            detections,
+            columns=["latitude", "longitude", "score", "description"],
+        )
+        df.to_csv(csv_out, index=False)
+        console.log(f"[cyan]Wrote {csv_out}")
 
     return detections
 
