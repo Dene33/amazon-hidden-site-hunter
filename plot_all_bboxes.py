@@ -277,9 +277,9 @@ def main():
                                 bboxes.push([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
                             }}
                         }});
-                        var data = 'bbox:\n';
+                        var data = 'bbox:\\n';
                         bboxes.forEach(function(b) {{
-                            data += '  - [' + b[0] + ', ' + b[1] + ', ' + b[2] + ', ' + b[3] + ']\n';
+                            data += '  - [' + b[0] + ', ' + b[1] + ', ' + b[2] + ', ' + b[3] + ']\\n';
                         }});
                         var a = document.createElement('a');
                         a.href = URL.createObjectURL(new Blob([data], {{type: 'text/yaml'}}));
