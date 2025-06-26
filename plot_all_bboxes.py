@@ -33,13 +33,9 @@ def main():
     ap.add_argument("--include-data-vis", action="store_true", default=True, help="Include reference datasets")
     ap.add_argument(
         "--draw-bboxes",
-        action="store_true",
-        help="Allow drawing additional bounding boxes on the map",
-    )
-    ap.add_argument(
-        "--yaml-output",
-        default="drawn_bboxes.yaml",
-        help="Filename for exported drawn bounding boxes",
+        metavar="FILE",
+        default=None,
+        help="Enable drawing rectangles that can be saved to FILE with a Save button",
     )
     args = ap.parse_args()
 
@@ -238,12 +234,8 @@ def main():
     plugins.MiniMap().add_to(m)
 
     if args.draw_bboxes:
-        drawn = folium.FeatureGroup(name="DrawnBBoxes", show=True, control=False)
-        drawn.add_to(m)
-        plugins.Draw(
-            export=False,
-            position="topleft",
-            feature_group=drawn,
+        draw_path = Path(args.draw_bboxes)
+        draw = plugins.Draw(
             draw_options={
                 "polyline": False,
                 "polygon": False,
@@ -252,39 +244,53 @@ def main():
                 "circlemarker": False,
                 "rectangle": {"shapeOptions": {"color": "green"}},
             },
-            edit_options={"edit": True, "remove": True},
-        ).add_to(m)
-
+            edit_options={"edit": False, "remove": False},
+        )
+        draw.add_to(m)
+        map_id = m.get_name()
+        control_id = draw.get_name()
+        feature_group = f"drawnItems_{control_id}"
         save_js = f"""
         setTimeout(function() {{
-            var grp = {drawn.get_name()};
-            var SaveCtrl = L.Control.extend({{
-                options: {{ position: 'topleft' }},
+            function setupAltDelete(layer) {{
+                layer.on('click', function(e) {{
+                    if (e.originalEvent && e.originalEvent.altKey) {{
+                        {feature_group}.removeLayer(layer);
+                    }}
+                }});
+            }}
+            {feature_group}.eachLayer(setupAltDelete);
+            {map_id}.on('draw:created', function(e) {{
+                var layer = e.layer;
+                setupAltDelete(layer);
+            }});
+            var SaveControl = L.Control.extend({{
+                options: {{position: 'topleft'}},
                 onAdd: function() {{
-                    var btn = L.DomUtil.create('button', 'save-drawn-bbox');
-                    btn.innerHTML = 'Save BBoxes';
+                    var btn = L.DomUtil.create('button', 'save-bbox-button');
+                    btn.innerHTML = 'Save';
                     L.DomEvent.on(btn, 'click', function() {{
                         var bboxes = [];
-                        grp.eachLayer(function(l) {{
+                        {feature_group}.eachLayer(function(l) {{
                             if (l instanceof L.Rectangle) {{
                                 var b = l.getBounds();
                                 bboxes.push([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
                             }}
                         }});
-                        var yaml = 'bbox:\n';
+                        var data = 'bbox:\n';
                         bboxes.forEach(function(b) {{
-                            yaml += '  - [' + b[0] + ', ' + b[1] + ', ' + b[2] + ', ' + b[3] + ']\n';
+                            data += '  - [' + b[0] + ', ' + b[1] + ', ' + b[2] + ', ' + b[3] + ']\n';
                         }});
                         var a = document.createElement('a');
-                        a.href = URL.createObjectURL(new Blob([yaml], {{type: 'text/yaml'}}));
-                        a.download = {json.dumps(args.yaml_output)};
+                        a.href = URL.createObjectURL(new Blob([data], {{type: 'text/yaml'}}));
+                        a.download = '{draw_path.name}';
                         a.click();
                         URL.revokeObjectURL(a.href);
                     }});
                     return btn;
                 }}
             }});
-            new SaveCtrl().addTo({m.get_name()});
+            new SaveControl().addTo({map_id});
         }}, 0);
         """
         m.get_root().script.add_child(Element(save_js))
