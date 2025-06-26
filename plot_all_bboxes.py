@@ -31,6 +31,12 @@ def main():
     ap.add_argument("dirs", nargs="*", type=Path, default=DEFAULT_DIRS, help="Base directories to search")
     ap.add_argument("--output", default="all_bboxes_map.html", help="Output HTML file")
     ap.add_argument("--include-data-vis", action="store_true", default=True, help="Include reference datasets")
+    ap.add_argument(
+        "--draw-bboxes",
+        metavar="FILE",
+        default=None,
+        help="Enable drawing rectangles that can be saved to FILE with a Save button",
+    )
     args = ap.parse_args()
 
     bbox_dirs = list(find_bbox_folders(args.dirs))
@@ -226,6 +232,68 @@ def main():
     plugins.Fullscreen().add_to(m)
     plugins.MeasureControl(primary_length_unit='kilometers').add_to(m)
     plugins.MiniMap().add_to(m)
+
+    if args.draw_bboxes:
+        draw_path = Path(args.draw_bboxes)
+        draw = plugins.Draw(
+            draw_options={
+                "polyline": False,
+                "polygon": False,
+                "circle": False,
+                "marker": False,
+                "circlemarker": False,
+                "rectangle": {"shapeOptions": {"color": "green"}},
+            },
+            edit_options={"edit": False, "remove": False},
+        )
+        draw.add_to(m)
+        map_id = m.get_name()
+        control_id = draw.get_name()
+        feature_group = f"drawnItems_{control_id}"
+        save_js = f"""
+        setTimeout(function() {{
+            function setupAltDelete(layer) {{
+                layer.on('click', function(e) {{
+                    if (e.originalEvent && e.originalEvent.altKey) {{
+                        {feature_group}.removeLayer(layer);
+                    }}
+                }});
+            }}
+            {feature_group}.eachLayer(setupAltDelete);
+            {map_id}.on('draw:created', function(e) {{
+                var layer = e.layer;
+                setupAltDelete(layer);
+            }});
+            var SaveControl = L.Control.extend({{
+                options: {{position: 'topleft'}},
+                onAdd: function() {{
+                    var btn = L.DomUtil.create('button', 'save-bbox-button');
+                    btn.innerHTML = 'Save';
+                    L.DomEvent.on(btn, 'click', function() {{
+                        var bboxes = [];
+                        {feature_group}.eachLayer(function(l) {{
+                            if (l instanceof L.Rectangle) {{
+                                var b = l.getBounds();
+                                bboxes.push([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
+                            }}
+                        }});
+                        var data = 'bbox:\\n';
+                        bboxes.forEach(function(b) {{
+                            data += '  - [' + b[0] + ', ' + b[1] + ', ' + b[2] + ', ' + b[3] + ']\\n';
+                        }});
+                        var a = document.createElement('a');
+                        a.href = URL.createObjectURL(new Blob([data], {{type: 'text/yaml'}}));
+                        a.download = '{draw_path.name}';
+                        a.click();
+                        URL.revokeObjectURL(a.href);
+                    }});
+                    return btn;
+                }}
+            }});
+            new SaveControl().addTo({map_id});
+        }}, 0);
+        """
+        m.get_root().script.add_child(Element(save_js))
 
     m.save(args.output)
     print(f"Map saved to {args.output}")

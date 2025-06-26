@@ -479,18 +479,22 @@ def create_combined_map(
     # 2️⃣ Add the graticule after Leaflet has initialised
     graticule_js = f"""
     <script>
-        L.latLngGraticule({{
-            showLabel: true,
-            opacity: 0.6,
-            weight: 0.8,
-            color: '#ffff00',
-            zoomInterval: [
-                {{start: 2, end: 3, interval: 30}},
-                {{start: 4, end: 4, interval: 10}},
-                {{start: 5, end: 7, interval: 5}},
-                {{start: 8, end:10, interval: 1}}
-            ]
-        }}).addTo({m.get_name()});
+        if (typeof L.latLngGraticule === 'function') {{
+            L.latLngGraticule({{
+                showLabel: true,
+                opacity: 0.6,
+                weight: 0.8,
+                color: '#ffff00',
+                zoomInterval: [
+                    {{start: 2, end: 3, interval: 30}},
+                    {{start: 4, end: 4, interval: 10}},
+                    {{start: 5, end: 7, interval: 5}},
+                    {{start: 8, end:10, interval: 1}}
+                ]
+            }}).addTo({m.get_name()});
+        }} else {{
+            console.warn('leaflet-graticule plugin not loaded');
+        }}
     </script>
     """
     m.get_root().html.add_child(Element(graticule_js))
