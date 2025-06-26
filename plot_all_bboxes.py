@@ -152,8 +152,9 @@ def main():
             rect = folium.Rectangle(
                 [[b[1], b[0]], [b[3], b[2]]],
                 color="red",
-                fill=False,
                 weight=2,
+                fill=True,
+                fill_opacity=0,
             )
             rect.add_to(bbox_group)
 
