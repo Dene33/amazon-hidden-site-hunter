@@ -110,6 +110,20 @@ def main():
 
     m = create_combined_map(arch_dfs, lidar_df, image_files, bbox=None)
 
+    highlight_js = """
+    window._ctrlDown = false;
+    window._altDown = false;
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Control') _ctrlDown = true;
+        if (e.key === 'Alt') _altDown = true;
+    });
+    document.addEventListener('keyup', function(e) {
+        if (e.key === 'Control') _ctrlDown = false;
+        if (e.key === 'Alt') _altDown = false;
+    });
+    """
+    m.get_root().script.add_child(Element(highlight_js))
+
     # Remove the initial LayerControl so newly added layers show up
     for key, child in list(m._children.items()):
         if isinstance(child, folium.map.LayerControl):
@@ -138,8 +152,9 @@ def main():
             rect = folium.Rectangle(
                 [[b[1], b[0]], [b[3], b[2]]],
                 color="red",
-                fill=False,
                 weight=2,
+                fill=True,
+                fill_opacity=0,
             )
             rect.add_to(bbox_group)
 
@@ -154,12 +169,30 @@ def main():
                 var groups_{idx} = {groups_js};
                 var overlays_{idx} = {{}};
                 var tooltip_{idx} = L.tooltip({{className: 'bbox-label'}}).setContent({json.dumps(name)});
+                var defaultStyle_{idx} = {{color: 'red', weight: 2, fillOpacity: 0}};
+                var highlightStyle_{idx} = {{color: 'yellow', weight: 3, fillOpacity: 0.3}};
+                rect_{idx}.isHovered = false;
+
+                function updateStyle_{idx}() {{
+                    if (rect_{idx}.isHovered && (window._ctrlDown || window._altDown)) {{
+                        rect_{idx}.setStyle(highlightStyle_{idx});
+                    }} else {{
+                        rect_{idx}.setStyle(defaultStyle_{idx});
+                    }}
+                }}
+
+                document.addEventListener('keydown', updateStyle_{idx});
+                document.addEventListener('keyup', updateStyle_{idx});
 
                 rect_{idx}.on('mouseover', function(e) {{
+                    rect_{idx}.isHovered = true;
                     tooltip_{idx}.setLatLng([{b[3]}, {b[0]}]).addTo({m.get_name()});
+                    updateStyle_{idx}();
                 }});
                 rect_{idx}.on('mouseout', function(e) {{
+                    rect_{idx}.isHovered = false;
                     {m.get_name()}.removeLayer(tooltip_{idx});
+                    updateStyle_{idx}();
                 }});
 
                 rect_{idx}.on('click', function(e) {{
@@ -167,7 +200,7 @@ def main():
                         for (var t in overlays_{idx}) {{
                             overlays_{idx}[t].forEach(function(o) {{ groups_{idx}[t].removeLayer(o); }});
                         }}
-                    }} else {{
+                    }} else if (e.originalEvent.ctrlKey) {{
                         for (var t in imgs_{idx}) {{
                             var grp = groups_{idx}[t];
                             if (!overlays_{idx}[t]) overlays_{idx}[t] = [];
