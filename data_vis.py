@@ -34,6 +34,8 @@ import os
 # import base64
 from folium.raster_layers import ImageOverlay
 from PIL import Image
+from pathlib import Path
+from folium.utilities import mercator_transform, write_png
 
 # Base directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -91,6 +93,39 @@ def row_to_poly(r):
         (r["max_lon"], r["max_lat"]),
         (r["max_lon"], r["min_lat"]),
     ])
+
+
+def save_mercator_png(img_path: str | os.PathLike, bounds: list, out_path: str | os.PathLike | None = None) -> Path:
+    """Project ``img_path`` to Web Mercator and save it as a PNG.
+
+    Parameters
+    ----------
+    img_path : path-like
+        Source image path.
+    bounds : list
+        Bounds in ``[[south, west], [north, east]]`` order.
+    out_path : path-like, optional
+        Destination path. Defaults to ``<img_path>_mercator.png``.
+
+    Returns
+    -------
+    Path
+        The written PNG path.
+    """
+
+    lat_min, lat_max = bounds[0][0], bounds[1][0]
+    arr = np.asarray(Image.open(img_path))
+    projected = mercator_transform(arr, (lat_min, lat_max), origin="upper")
+    png_bytes = write_png(projected, origin="upper")
+
+    if out_path is None:
+        p = Path(img_path)
+        out_path = p.with_name(f"{p.stem}_mercator.png")
+    out_path = Path(out_path)
+
+    with open(out_path, "wb") as fh:
+        fh.write(png_bytes)
+    return out_path
 
 def read_mound_villages_data(filepath):
     """Read the mound villages data from CSV file."""
@@ -605,8 +640,9 @@ def create_combined_map(
         #         img_input = np.asarray(Image.open(img_path))
         #     else:
         #         img_input = f"file://{img_path}"
-        use_mercator = True
-        img_input = np.asarray(Image.open(img_path))
+        projected_path = save_mercator_png(img_path, bounds)
+        use_mercator = False
+        img_input = str(projected_path)
         
         # Create a unique ID for this image's control
         img_id = f"img_{img_name_simple.replace(' ', '_').replace('.', '_')}"
