@@ -473,7 +473,7 @@ def create_combined_map(
 
     # 1️⃣ Load the JS for the graticule plugin
     JavascriptLink(
-        "https://unpkg.com/leaflet.latlng-graticule@1.0.0/dist/Leaflet.Graticule.min.js"
+        "https://cdn.jsdelivr.net/npm/leaflet-graticule@0.0.1/Leaflet.Graticule.min.js"
     ).add_to(m)
 
     # 2️⃣ Add the graticule after Leaflet has initialised

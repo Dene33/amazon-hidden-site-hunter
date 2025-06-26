@@ -161,7 +161,8 @@ def main():
                         }} else {{
                             overlays_{idx}.forEach(function(o) {{ if (!{m.get_name()}.hasLayer(o)) o.addTo({m.get_name()}); }});
                         }}
-                    }});
+                    }}
+                }});
             }}, 0);
             """
             m.get_root().script.add_child(Element(js))
