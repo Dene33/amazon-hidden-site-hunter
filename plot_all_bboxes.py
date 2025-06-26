@@ -6,8 +6,7 @@ import geopandas as gpd
 import folium
 from folium import plugins, Element
 import json
-import numpy as np
-from PIL import Image
+import os
 from sentinel_utils import read_bbox_metadata
 from data_vis import create_combined_map, load_reference_datasets
 
@@ -37,7 +36,7 @@ def main():
     bbox_dirs = list(find_bbox_folders(args.dirs))
 
     bbox_infos: list[tuple[str, tuple[float, float, float, float]]] = []
-    image_groups: list[folium.FeatureGroup] = []
+    image_groups: list[list[dict]] = []
 
     anomalies_fg = folium.FeatureGroup(name="Anomalies", show=True, control=True)
     gpt_fg = folium.FeatureGroup(name="ChatGPT", show=True, control=True)
@@ -88,28 +87,18 @@ def main():
             except Exception as exc:
                 print(f"Could not read {gpt_path}: {exc}")
 
-        img_group = folium.FeatureGroup(name=f"Images_{idx}", show=False, control=False)
+        imgs = []
         for p in sorted(folder.glob("*.png")) + sorted(folder.glob("*.jpg")) + sorted(folder.glob("*.jpeg")):
             if p.name == "interactive_map.html" or p.name.startswith("2_gedi_points"):
                 continue
             bbox_meta = read_bbox_metadata(p)
             if bbox_meta is None:
                 continue
-            try:
-                with Image.open(p) as img:
-                    arr = np.asarray(img)
-            except Exception as exc:
-                print(f"Could not open {p}: {exc}")
-                continue
             bounds = [[bbox_meta[1], bbox_meta[0]], [bbox_meta[3], bbox_meta[2]]]
-            folium.raster_layers.ImageOverlay(
-                image=arr,
-                bounds=bounds,
-                name=p.name,
-                mercator_project=True,
-            ).add_to(img_group)
+            rel_path = os.path.relpath(p, Path(args.output).resolve().parent)
+            imgs.append({"path": rel_path, "bounds": bounds})
 
-        image_groups.append(img_group)
+        image_groups.append(imgs)
 
     if args.include_data_vis:
         arch_dfs, lidar_df, image_files = load_reference_datasets()
@@ -135,8 +124,7 @@ def main():
         anomalies_fg.add_to(m)
         gpt_fg.add_to(m)
 
-        for idx, ((name, b), img_group) in enumerate(zip(bbox_infos, image_groups)):
-            img_group.add_to(m)
+        for idx, ((name, b), imgs) in enumerate(zip(bbox_infos, image_groups)):
             rect = folium.Rectangle(
                 [[b[1], b[0]], [b[3], b[2]]],
                 color="red",
@@ -148,11 +136,9 @@ def main():
             js = f"""
             setTimeout(function() {{
                 var rect_{idx} = {rect.get_name()};
-                var img_{idx} = {img_group.get_name()};
+                var imgs_{idx} = {json.dumps(imgs)};
+                var overlays_{idx} = [];
                 var tooltip_{idx} = L.tooltip({{className: 'bbox-label'}}).setContent({json.dumps(name)});
-
-                // hide layers initially
-                {m.get_name()}.removeLayer(img_{idx});
 
                 rect_{idx}.on('mouseover', function(e) {{
                     tooltip_{idx}.setLatLng([{b[3]}, {b[0]}]).addTo({m.get_name()});
@@ -163,11 +149,18 @@ def main():
 
                 rect_{idx}.on('click', function(e) {{
                     if (e.originalEvent.altKey) {{
-                        if ({m.get_name()}.hasLayer(img_{idx})) {{ {m.get_name()}.removeLayer(img_{idx}); }}
+                        overlays_{idx}.forEach(function(o) {{ {m.get_name()}.removeLayer(o); }});
                     }} else {{
-                        if (!{m.get_name()}.hasLayer(img_{idx})) {{ {m.get_name()}.addLayer(img_{idx}); }}
-                    }}
-                }});
+                        if (overlays_{idx}.length === 0) {{
+                            imgs_{idx}.forEach(function(info) {{
+                                var o = L.imageOverlay(info.path, info.bounds);
+                                overlays_{idx}.push(o);
+                                o.addTo({m.get_name()});
+                            }});
+                        }} else {{
+                            overlays_{idx}.forEach(function(o) {{ if (!{m.get_name()}.hasLayer(o)) o.addTo({m.get_name()}); }});
+                        }}
+                    }});
             }}, 0);
             """
             m.get_root().script.add_child(Element(js))
