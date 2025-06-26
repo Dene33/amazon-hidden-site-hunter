@@ -88,7 +88,12 @@ def fetch_cop_tiles(bbox: tuple[float, float, float, float], out_dir: Path) -> P
     """Download and mosaic Copernicus tiles using :mod:`cop_dem_tools`."""
     tiles = _fetch_cop_tiles(bbox, out_dir)
     mosaic = mosaic_cop_tiles(tiles, out_dir / "cop90_mosaic.tif", bbox)
-    crop = crop_to_bbox(mosaic, bbox, out_dir / "cop90_crop.tif")
+    crop = crop_to_bbox(
+        mosaic,
+        bbox,
+        out_dir / "cop90_crop.tif",
+        resolution=0.0002695,
+    )
     return crop
 
 # ──────────────── GEDI helpers ─────────────────
