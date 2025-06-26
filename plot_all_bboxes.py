@@ -36,7 +36,8 @@ def main():
     bbox_dirs = list(find_bbox_folders(args.dirs))
 
     bbox_infos: list[tuple[str, tuple[float, float, float, float]]] = []
-    image_groups: list[list[dict]] = []
+    bbox_images: list[dict[str, list[dict]]] = []
+    all_image_types: set[str] = set()
 
     anomalies_fg = folium.FeatureGroup(name="Anomalies", show=True, control=True)
     gpt_fg = folium.FeatureGroup(name="ChatGPT", show=True, control=True)
@@ -87,7 +88,7 @@ def main():
             except Exception as exc:
                 print(f"Could not read {gpt_path}: {exc}")
 
-        imgs = []
+        imgs: dict[str, list[dict]] = {}
         for p in sorted(folder.glob("*.png")) + sorted(folder.glob("*.jpg")) + sorted(folder.glob("*.jpeg")):
             if p.name == "interactive_map.html" or p.name.startswith("2_gedi_points"):
                 continue
@@ -96,9 +97,11 @@ def main():
                 continue
             bounds = [[bbox_meta[1], bbox_meta[0]], [bbox_meta[3], bbox_meta[2]]]
             rel_path = os.path.relpath(p, Path(args.output).resolve().parent)
-            imgs.append({"path": rel_path, "bounds": bounds})
+            img_type = p.stem
+            imgs.setdefault(img_type, []).append({"path": rel_path, "bounds": bounds})
+            all_image_types.add(img_type)
 
-        image_groups.append(imgs)
+        bbox_images.append(imgs)
 
     if args.include_data_vis:
         arch_dfs, lidar_df, image_files = load_reference_datasets()
@@ -125,7 +128,13 @@ def main():
         anomalies_fg.add_to(m)
         gpt_fg.add_to(m)
 
-        for idx, ((name, b), imgs) in enumerate(zip(bbox_infos, image_groups)):
+        img_type_groups: dict[str, folium.FeatureGroup] = {}
+        for img_type in sorted(all_image_types):
+            fg = folium.FeatureGroup(name=f"Image: {img_type}", show=False, control=True)
+            fg.add_to(m)
+            img_type_groups[img_type] = fg
+
+        for idx, ((name, b), imgs) in enumerate(zip(bbox_infos, bbox_images)):
             rect = folium.Rectangle(
                 [[b[1], b[0]], [b[3], b[2]]],
                 color="red",
@@ -134,17 +143,14 @@ def main():
             )
             rect.add_to(bbox_group)
 
-            img_group = folium.FeatureGroup(
-                name=f"{name} images", show=False, control=True
-            )
-            img_group.add_to(m)
+            groups_dict = {k: img_type_groups[k].get_name() for k in imgs}
 
             js = f"""
             setTimeout(function() {{
                 var rect_{idx} = {rect.get_name()};
                 var imgs_{idx} = {json.dumps(imgs)};
-                var overlays_{idx} = [];
-                var group_{idx} = {img_group.get_name()};
+                var groups_{idx} = {json.dumps(groups_dict)};
+                var overlays_{idx} = {{}};
                 var tooltip_{idx} = L.tooltip({{className: 'bbox-label'}}).setContent({json.dumps(name)});
 
                 rect_{idx}.on('mouseover', function(e) {{
@@ -156,16 +162,22 @@ def main():
 
                 rect_{idx}.on('click', function(e) {{
                     if (e.originalEvent.altKey) {{
-                        overlays_{idx}.forEach(function(o) {{ group_{idx}.removeLayer(o); }});
+                        for (var t in overlays_{idx}) {{
+                            overlays_{idx}[t].forEach(function(o) {{ groups_{idx}[t].removeLayer(o); }});
+                        }}
                     }} else {{
-                        if (overlays_{idx}.length === 0) {{
-                            imgs_{idx}.forEach(function(info) {{
-                                var o = L.imageOverlay(info.path, info.bounds);
-                                overlays_{idx}.push(o);
-                                o.addTo(group_{idx});
-                            }});
-                        }} else {{
-                            overlays_{idx}.forEach(function(o) {{ if (!group_{idx}.hasLayer(o)) o.addTo(group_{idx}); }});
+                        for (var t in imgs_{idx}) {{
+                            var grp = groups_{idx}[t];
+                            if (!overlays_{idx][t]) overlays_{idx][t] = [];
+                            if (overlays_{idx][t].length === 0) {{
+                                imgs_{idx}[t].forEach(function(info) {{
+                                    var o = L.imageOverlay(info.path, info.bounds);
+                                    overlays_{idx][t].push(o);
+                                    o.addTo(grp);
+                                }});
+                            }} else {{
+                                overlays_{idx][t].forEach(function(o) {{ if (!grp.hasLayer(o)) o.addTo(grp); }});
+                            }}
                         }}
                     }}
                 }});
