@@ -134,11 +134,17 @@ def main():
             )
             rect.add_to(bbox_group)
 
+            img_group = folium.FeatureGroup(
+                name=f"{name} images", show=False, control=True
+            )
+            img_group.add_to(m)
+
             js = f"""
             setTimeout(function() {{
                 var rect_{idx} = {rect.get_name()};
                 var imgs_{idx} = {json.dumps(imgs)};
                 var overlays_{idx} = [];
+                var group_{idx} = {img_group.get_name()};
                 var tooltip_{idx} = L.tooltip({{className: 'bbox-label'}}).setContent({json.dumps(name)});
 
                 rect_{idx}.on('mouseover', function(e) {{
@@ -150,16 +156,16 @@ def main():
 
                 rect_{idx}.on('click', function(e) {{
                     if (e.originalEvent.altKey) {{
-                        overlays_{idx}.forEach(function(o) {{ {m.get_name()}.removeLayer(o); }});
+                        overlays_{idx}.forEach(function(o) {{ group_{idx}.removeLayer(o); }});
                     }} else {{
                         if (overlays_{idx}.length === 0) {{
                             imgs_{idx}.forEach(function(info) {{
                                 var o = L.imageOverlay(info.path, info.bounds);
                                 overlays_{idx}.push(o);
-                                o.addTo({m.get_name()});
+                                o.addTo(group_{idx});
                             }});
                         }} else {{
-                            overlays_{idx}.forEach(function(o) {{ if (!{m.get_name()}.hasLayer(o)) o.addTo({m.get_name()}); }});
+                            overlays_{idx}.forEach(function(o) {{ if (!group_{idx}.hasLayer(o)) o.addTo(group_{idx}); }});
                         }}
                     }}
                 }});
