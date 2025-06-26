@@ -6,6 +6,9 @@ import geopandas as gpd
 import folium
 from folium import plugins, Element
 import json
+import numpy as np
+from PIL import Image
+from sentinel_utils import read_bbox_metadata
 from data_vis import create_combined_map, load_reference_datasets
 
 DEFAULT_DIRS = [Path("pipeline_out")]
@@ -33,12 +36,14 @@ def main():
 
     bbox_dirs = list(find_bbox_folders(args.dirs))
 
-    bbox_infos = []
-    bbox_layers = []
+    bbox_infos: list[tuple[str, tuple[float, float, float, float]]] = []
+    image_groups: list[folium.FeatureGroup] = []
+
+    anomalies_fg = folium.FeatureGroup(name="Anomalies", show=True, control=True)
+    gpt_fg = folium.FeatureGroup(name="ChatGPT", show=True, control=True)
+
     for idx, (folder, bbox) in enumerate(bbox_dirs):
         bbox_infos.append((folder.name, bbox))
-        anom_layer = folium.FeatureGroup(name=f"Anomalies_{idx}", show=False, control=False)
-        gpt_layer = folium.FeatureGroup(name=f"ChatGPT_{idx}", show=False, control=False)
 
         anom_path = folder / "anomalies.geojson"
         if anom_path.exists():
@@ -62,7 +67,7 @@ def main():
                             fill_color=_color(sc),
                             fill_opacity=0.7,
                             tooltip=f"Anomaly {sc:.2f}",
-                        ).add_to(anom_layer)
+                        ).add_to(anomalies_fg)
             except Exception as exc:
                 print(f"Could not read {anom_path}: {exc}")
 
@@ -79,11 +84,32 @@ def main():
                             location=[row["latitude"], row["longitude"]],
                             icon=folium.Icon(color="blue", icon="flag"),
                             popup=folium.Popup(popup, max_width=400),
-                        ).add_to(gpt_layer)
+                        ).add_to(gpt_fg)
             except Exception as exc:
                 print(f"Could not read {gpt_path}: {exc}")
 
-        bbox_layers.append((anom_layer, gpt_layer))
+        img_group = folium.FeatureGroup(name=f"Images_{idx}", show=False, control=False)
+        for p in sorted(folder.glob("*.png")) + sorted(folder.glob("*.jpg")) + sorted(folder.glob("*.jpeg")):
+            if p.name == "interactive_map.html" or p.name.startswith("2_gedi_points"):
+                continue
+            bbox_meta = read_bbox_metadata(p)
+            if bbox_meta is None:
+                continue
+            try:
+                with Image.open(p) as img:
+                    arr = np.asarray(img)
+            except Exception as exc:
+                print(f"Could not open {p}: {exc}")
+                continue
+            bounds = [[bbox_meta[1], bbox_meta[0]], [bbox_meta[3], bbox_meta[2]]]
+            folium.raster_layers.ImageOverlay(
+                image=arr,
+                bounds=bounds,
+                name=p.name,
+                mercator_project=True,
+            ).add_to(img_group)
+
+        image_groups.append(img_group)
 
     if args.include_data_vis:
         arch_dfs, lidar_df, image_files = load_reference_datasets()
@@ -106,11 +132,11 @@ def main():
         center = [(ymin + ymax) / 2, (xmin + xmax) / 2]
         m.location = center
         bbox_group = folium.FeatureGroup(name="Bounding Boxes", show=True, control=True)
+        anomalies_fg.add_to(m)
+        gpt_fg.add_to(m)
 
-        for idx, ((name, b), layers) in enumerate(zip(bbox_infos, bbox_layers)):
-            anom_layer, gpt_layer = layers
-            anom_layer.add_to(m)
-            gpt_layer.add_to(m)
+        for idx, ((name, b), img_group) in enumerate(zip(bbox_infos, image_groups)):
+            img_group.add_to(m)
             rect = folium.Rectangle(
                 [[b[1], b[0]], [b[3], b[2]]],
                 color="red",
@@ -122,13 +148,11 @@ def main():
             js = f"""
             setTimeout(function() {{
                 var rect_{idx} = {rect.get_name()};
-                var anom_{idx} = {anom_layer.get_name()};
-                var gpt_{idx} = {gpt_layer.get_name()};
+                var img_{idx} = {img_group.get_name()};
                 var tooltip_{idx} = L.tooltip({{className: 'bbox-label'}}).setContent({json.dumps(name)});
 
                 // hide layers initially
-                {m.get_name()}.removeLayer(anom_{idx});
-                {m.get_name()}.removeLayer(gpt_{idx});
+                {m.get_name()}.removeLayer(img_{idx});
 
                 rect_{idx}.on('mouseover', function(e) {{
                     tooltip_{idx}.setLatLng([{b[3]}, {b[0]}]).addTo({m.get_name()});
@@ -139,11 +163,9 @@ def main():
 
                 rect_{idx}.on('click', function(e) {{
                     if (e.originalEvent.altKey) {{
-                        if ({m.get_name()}.hasLayer(anom_{idx})) {{ {m.get_name()}.removeLayer(anom_{idx}); }}
-                        if ({m.get_name()}.hasLayer(gpt_{idx})) {{ {m.get_name()}.removeLayer(gpt_{idx}); }}
+                        if ({m.get_name()}.hasLayer(img_{idx})) {{ {m.get_name()}.removeLayer(img_{idx}); }}
                     }} else {{
-                        if (!{m.get_name()}.hasLayer(anom_{idx})) {{ {m.get_name()}.addLayer(anom_{idx}); }}
-                        if (!{m.get_name()}.hasLayer(gpt_{idx})) {{ {m.get_name()}.addLayer(gpt_{idx}); }}
+                        if (!{m.get_name()}.hasLayer(img_{idx})) {{ {m.get_name()}.addLayer(img_{idx}); }}
                     }}
                 }});
             }}, 0);
