@@ -479,7 +479,7 @@ def create_combined_map(
     # 2️⃣ Add the graticule after Leaflet has initialised
     graticule_js = f"""
     <script>
-        L.latlngGraticule({{
+        L.latLngGraticule({{
             showLabel: true,
             opacity: 0.6,
             weight: 0.8,

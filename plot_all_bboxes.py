@@ -143,13 +143,15 @@ def main():
             )
             rect.add_to(bbox_group)
 
-            groups_dict = {k: img_type_groups[k].get_name() for k in imgs}
+            groups_js = "{" + ", ".join(
+                f"'{k}': {img_type_groups[k].get_name()}" for k in imgs
+            ) + "}"
 
             js = f"""
             setTimeout(function() {{
                 var rect_{idx} = {rect.get_name()};
                 var imgs_{idx} = {json.dumps(imgs)};
-                var groups_{idx} = {json.dumps(groups_dict)};
+                var groups_{idx} = {groups_js};
                 var overlays_{idx} = {{}};
                 var tooltip_{idx} = L.tooltip({{className: 'bbox-label'}}).setContent({json.dumps(name)});
 
