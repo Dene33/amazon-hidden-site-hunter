@@ -121,6 +121,7 @@ def main():
         center = [(ymin + ymax) / 2, (xmin + xmax) / 2]
         m.location = center
         bbox_group = folium.FeatureGroup(name="Bounding Boxes", show=True, control=True)
+        bbox_group.add_to(m)
         anomalies_fg.add_to(m)
         gpt_fg.add_to(m)
 
@@ -164,9 +165,8 @@ def main():
             }}, 0);
             """
             m.get_root().script.add_child(Element(js))
-        bbox_group.add_to(m)
-        m.fit_bounds([[ymin, xmin], [ymax, xmax]])
 
+        m.fit_bounds([[ymin, xmin], [ymax, xmax]])
 
     folium.LayerControl(collapsed=False).add_to(m)
     plugins.Fullscreen().add_to(m)
