@@ -31,6 +31,16 @@ def main():
     ap.add_argument("dirs", nargs="*", type=Path, default=DEFAULT_DIRS, help="Base directories to search")
     ap.add_argument("--output", default="all_bboxes_map.html", help="Output HTML file")
     ap.add_argument("--include-data-vis", action="store_true", default=True, help="Include reference datasets")
+    ap.add_argument(
+        "--draw-bboxes",
+        action="store_true",
+        help="Allow drawing additional bounding boxes on the map",
+    )
+    ap.add_argument(
+        "--yaml-output",
+        default="drawn_bboxes.yaml",
+        help="Filename for exported drawn bounding boxes",
+    )
     args = ap.parse_args()
 
     bbox_dirs = list(find_bbox_folders(args.dirs))
@@ -226,6 +236,58 @@ def main():
     plugins.Fullscreen().add_to(m)
     plugins.MeasureControl(primary_length_unit='kilometers').add_to(m)
     plugins.MiniMap().add_to(m)
+
+    if args.draw_bboxes:
+        drawn = folium.FeatureGroup(name="DrawnBBoxes", show=True, control=False)
+        drawn.add_to(m)
+        plugins.Draw(
+            export=False,
+            position="topleft",
+            feature_group=drawn,
+            draw_options={
+                "polyline": False,
+                "polygon": False,
+                "circle": False,
+                "marker": False,
+                "circlemarker": False,
+                "rectangle": {"shapeOptions": {"color": "green"}},
+            },
+            edit_options={"edit": True, "remove": True},
+        ).add_to(m)
+
+        save_js = f"""
+        setTimeout(function() {{
+            var grp = {drawn.get_name()};
+            var SaveCtrl = L.Control.extend({{
+                options: {{ position: 'topleft' }},
+                onAdd: function() {{
+                    var btn = L.DomUtil.create('button', 'save-drawn-bbox');
+                    btn.innerHTML = 'Save BBoxes';
+                    L.DomEvent.on(btn, 'click', function() {{
+                        var bboxes = [];
+                        grp.eachLayer(function(l) {{
+                            if (l instanceof L.Rectangle) {{
+                                var b = l.getBounds();
+                                bboxes.push([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
+                            }}
+                        }});
+                        var yaml = 'bbox:\n';
+                        bboxes.forEach(function(b) {{
+                            yaml += '  - [' + b[0] + ', ' + b[1] + ', ' + b[2] + ', ' + b[3] + ']\n';
+                        }});
+                        var a = document.createElement('a');
+                        a.href = URL.createObjectURL(new Blob([yaml], {{type: 'text/yaml'}}));
+                        a.download = {json.dumps(args.yaml_output)};
+                        a.click();
+                        URL.revokeObjectURL(a.href);
+                    }});
+                    return btn;
+                }}
+            }});
+            new SaveCtrl().addTo({m.get_name()});
+        }}, 0);
+        """
+        m.get_root().script.add_child(Element(save_js))
 
     m.save(args.output)
     print(f"Map saved to {args.output}")
