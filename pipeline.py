@@ -965,6 +965,33 @@ def step_interactive_map(
         chatgpt_points=chatgpt_points,
     )
 
+    if cfg.get("combined_bboxes_map", True):
+        try:
+            import sys
+            import plot_all_bboxes
+
+            out_dir = base.parent
+            output_path = out_dir / "all_bboxes_map.html"
+            draw_path = out_dir / "exported_bboxes.yaml"
+
+            argv_bak = sys.argv[:]
+            sys.argv = [
+                "plot_all_bboxes.py",
+                str(out_dir),
+                "--output",
+                str(output_path),
+                "--draw-bboxes",
+                str(draw_path),
+            ]
+            if include_data_vis:
+                sys.argv.append("--include-data-vis")
+
+            plot_all_bboxes.main()
+        except Exception as exc:  # noqa: BLE001
+            console.log(f"[red]Failed to create combined map: {exc}")
+        finally:
+            sys.argv = argv_bak
+
 
 # ---------------------------------------------------------------------------
 # Main entry point
