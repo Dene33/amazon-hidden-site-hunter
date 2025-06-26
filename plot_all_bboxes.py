@@ -30,7 +30,7 @@ def main():
     ap = argparse.ArgumentParser(description="Visualize results from multiple bbox folders")
     ap.add_argument("dirs", nargs="*", type=Path, default=DEFAULT_DIRS, help="Base directories to search")
     ap.add_argument("--output", default="all_bboxes_map.html", help="Output HTML file")
-    ap.add_argument("--include-data-vis", action="store_true", help="Include reference datasets")
+    ap.add_argument("--include-data-vis", action="store_true", default=True, help="Include reference datasets")
     args = ap.parse_args()
 
     bbox_dirs = list(find_bbox_folders(args.dirs))
@@ -168,15 +168,15 @@ def main():
                     }} else {{
                         for (var t in imgs_{idx}) {{
                             var grp = groups_{idx}[t];
-                            if (!overlays_{idx][t]) overlays_{idx][t] = [];
-                            if (overlays_{idx][t].length === 0) {{
+                            if (!overlays_{idx}[t]) overlays_{idx}[t] = [];
+                            if (overlays_{idx}[t].length === 0) {{
                                 imgs_{idx}[t].forEach(function(info) {{
                                     var o = L.imageOverlay(info.path, info.bounds);
-                                    overlays_{idx][t].push(o);
+                                    overlays_{idx}[t].push(o);
                                     o.addTo(grp);
                                 }});
                             }} else {{
-                                overlays_{idx][t].forEach(function(o) {{ if (!grp.hasLayer(o)) o.addTo(grp); }});
+                                overlays_{idx}[t].forEach(function(o) {{ if (!grp.hasLayer(o)) o.addTo(grp); }});
                             }}
                         }}
                     }}
