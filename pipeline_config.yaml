@@ -71,6 +71,7 @@ interactive_map:
   include_full_sentinel: false
   include_full_srtm: false
   include_full_aw3d: false
+  combined_bboxes_map: true
 
 export_obj:
   enabled: true
