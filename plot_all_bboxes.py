@@ -12,8 +12,11 @@ from data_vis import create_combined_map, load_reference_datasets
 
 DEFAULT_DIRS = [Path("pipeline_out")]
 
+
 def find_bbox_folders(base_dirs):
-    pattern = re.compile(r"^-?\d+(?:\.\d+)?_-?\d+(?:\.\d+)?_-?\d+(?:\.\d+)?_-?\d+(?:\.\d+)?$")
+    pattern = re.compile(
+        r"^-?\d+(?:\.\d+)?_-?\d+(?:\.\d+)?_-?\d+(?:\.\d+)?_-?\d+(?:\.\d+)?$"
+    )
     for base in base_dirs:
         base = Path(base)
         if not base.is_dir():
@@ -26,11 +29,30 @@ def find_bbox_folders(base_dirs):
                 except ValueError:
                     continue
 
+
 def main():
-    ap = argparse.ArgumentParser(description="Visualize results from multiple bbox folders")
-    ap.add_argument("dirs", nargs="*", type=Path, default=DEFAULT_DIRS, help="Base directories to search")
+    ap = argparse.ArgumentParser(
+        description="Visualize results from multiple bbox folders"
+    )
+    ap.add_argument(
+        "dirs",
+        nargs="*",
+        type=Path,
+        default=DEFAULT_DIRS,
+        help="Base directories to search",
+    )
     ap.add_argument("--output", default="all_bboxes_map.html", help="Output HTML file")
-    ap.add_argument("--include-data-vis", action="store_true", default=True, help="Include reference datasets")
+    ap.add_argument(
+        "--include-data-vis",
+        action="store_true",
+        default=True,
+        help="Include reference datasets",
+    )
+    ap.add_argument(
+        "--draw-bboxes",
+        metavar="FILE",
+        help="Enable drawing rectangles that can be saved to FILE in YAML format",
+    )
     args = ap.parse_args()
 
     bbox_dirs = list(find_bbox_folders(args.dirs))
@@ -50,12 +72,14 @@ def main():
             try:
                 gdf = gpd.read_file(anom_path)
                 if not gdf.empty:
+
                     def _color(s):
                         if s > 5:
                             return "#FF0000"
                         if s > 3:
                             return "#FFA500"
                         return "#FFFF00"
+
                     for _, row in gdf.iterrows():
                         pt = row.geometry
                         sc = row.get("score", 0)
@@ -89,7 +113,11 @@ def main():
                 print(f"Could not read {gpt_path}: {exc}")
 
         imgs: dict[str, list[dict]] = {}
-        for p in sorted(folder.glob("*.png")) + sorted(folder.glob("*.jpg")) + sorted(folder.glob("*.jpeg")):
+        for p in (
+            sorted(folder.glob("*.png"))
+            + sorted(folder.glob("*.jpg"))
+            + sorted(folder.glob("*.jpeg"))
+        ):
             if p.name == "interactive_map.html" or p.name.startswith("2_gedi_points"):
                 continue
             bbox_meta = read_bbox_metadata(p)
@@ -144,7 +172,9 @@ def main():
 
         img_type_groups: dict[str, folium.FeatureGroup] = {}
         for img_type in sorted(all_image_types):
-            fg = folium.FeatureGroup(name=f"Image: {img_type}", show=False, control=True)
+            fg = folium.FeatureGroup(
+                name=f"Image: {img_type}", show=False, control=True
+            )
             fg.add_to(m)
             img_type_groups[img_type] = fg
 
@@ -158,9 +188,11 @@ def main():
             )
             rect.add_to(bbox_group)
 
-            groups_js = "{" + ", ".join(
-                f"'{k}': {img_type_groups[k].get_name()}" for k in imgs
-            ) + "}"
+            groups_js = (
+                "{"
+                + ", ".join(f"'{k}': {img_type_groups[k].get_name()}" for k in imgs)
+                + "}"
+            )
 
             js = f"""
             setTimeout(function() {{
@@ -222,13 +254,78 @@ def main():
 
         m.fit_bounds([[ymin, xmin], [ymax, xmax]])
 
+    if args.draw_bboxes:
+        draw_file = Path(args.draw_bboxes)
+        drawn_fg = folium.FeatureGroup(name="Drawn BBoxes", show=True, control=True)
+        drawn_fg.add_to(m)
+        draw = plugins.Draw(
+            feature_group=drawn_fg,
+            draw_options={
+                "polyline": False,
+                "polygon": False,
+                "circle": False,
+                "marker": False,
+                "circlemarker": False,
+                "rectangle": {"shapeOptions": {"color": "green"}},
+            },
+            edit_options={"edit": False, "remove": False},
+        )
+        draw.add_to(m)
+        map_id = m.get_name()
+        feature_group = f"drawnItems_{draw.get_name()}"
+        js = f"""
+        setTimeout(function() {{
+            function setupAltDelete(layer) {{
+                layer.on('click', function(e) {{
+                    if (e.originalEvent && e.originalEvent.altKey) {{
+                        {feature_group}.removeLayer(layer);
+                    }}
+                }});
+            }}
+            {feature_group}.eachLayer(setupAltDelete);
+            {map_id}.on('draw:created', function(e) {{
+                var layer = e.layer;
+                setupAltDelete(layer);
+            }});
+            var SaveControl = L.Control.extend({{
+                options: {{position: 'topleft'}},
+                onAdd: function() {{
+                    var btn = L.DomUtil.create('button', 'save-bbox-button');
+                    btn.innerHTML = 'Save BBoxes';
+                    L.DomEvent.on(btn, 'click', function() {{
+                        var bboxes = [];
+                        {feature_group}.eachLayer(function(l) {{
+                            if (l instanceof L.Rectangle) {{
+                                var b = l.getBounds();
+                                bboxes.push([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
+                            }}
+                        }});
+                        var yaml = 'bbox:\n';
+                        bboxes.forEach(function(b) {{
+                            yaml += '  - [' + b[0] + ', ' + b[1] + ', ' + b[2] + ', ' + b[3] + ']\n';
+                        }});
+                        var a = document.createElement('a');
+                        a.href = URL.createObjectURL(new Blob([yaml], {{type: 'text/yaml'}}));
+                        a.download = '{draw_file.name}';
+                        a.click();
+                        URL.revokeObjectURL(a.href);
+                    }});
+                    return btn;
+                }}
+            }});
+            new SaveControl().addTo({map_id});
+        }}, 0);
+        """
+        m.get_root().script.add_child(Element(js))
+
     folium.LayerControl(collapsed=False).add_to(m)
     plugins.Fullscreen().add_to(m)
-    plugins.MeasureControl(primary_length_unit='kilometers').add_to(m)
+    plugins.MeasureControl(primary_length_unit="kilometers").add_to(m)
     plugins.MiniMap().add_to(m)
 
     m.save(args.output)
     print(f"Map saved to {args.output}")
+
 
 if __name__ == "__main__":
     main()
