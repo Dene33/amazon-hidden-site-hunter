@@ -138,3 +138,21 @@ def test_visualize_gedi_points_basic(tmp_path: Path) -> None:
         assert p.exists()
         assert read_bbox_metadata(p) == bbox
 
+
+def test_create_interactive_map_chatgpt_fallback(tmp_path: Path) -> None:
+    bbox = (0.0, 0.0, 1.0, 1.0)
+    (tmp_path / "chatgpt_analysis.txt").write_text("ID 1 0 S, 0 W score = 1.0")
+
+    create_interactive_map(
+        None,
+        pd.DataFrame(),
+        bbox,
+        tmp_path,
+        include_full_sentinel=False,
+        include_full_srtm=False,
+        include_full_aw3d=False,
+    )
+
+    html = (tmp_path / "interactive_map.html").read_text()
+    assert "ChatGPT Detections" in html
+

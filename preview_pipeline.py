@@ -32,6 +32,7 @@ from PIL import Image
 from sentinel_utils import save_image_with_metadata
 from pyproj import Transformer
 from rasterio.warp import Resampling, calculate_default_transform, reproject
+from chatgpt_parser import _parse_chatgpt_detections
 from scipy.interpolate import griddata
 from shapely.geometry import Point, box
 from shapely.ops import transform as shp_transform
@@ -895,6 +896,14 @@ def create_interactive_map(
     if anomalies is None and not Path(outdir).exists():
         print("No data for interactive map")
         return
+
+    if not chatgpt_points:
+        analysis_file = Path(outdir) / "chatgpt_analysis.txt"
+        if analysis_file.exists():
+            try:
+                chatgpt_points = _parse_chatgpt_detections(analysis_file.read_text())
+            except Exception as exc:  # pragma: no cover - ignore parse errors
+                print(f"Failed to parse {analysis_file}: {exc}")
 
     from data_vis import create_combined_map, load_reference_datasets
 

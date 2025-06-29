@@ -34,6 +34,8 @@ import os
 # import base64
 from folium.raster_layers import ImageOverlay
 from PIL import Image
+from pathlib import Path
+from chatgpt_parser import _parse_chatgpt_detections
 
 # Base directory
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -869,10 +871,24 @@ def create_combined_map(
 
         anomalies_layer.add_to(m)
 
-    # Add ChatGPT detections if provided
-    if chatgpt_points:
+    # Add ChatGPT detections if provided or available on disk
+    detections = chatgpt_points
+    if not detections:
+        candidates = [Path("chatgpt_analysis.txt")]
+        # Try the directory of the first image (typically the pipeline output)
+        if image_files:
+            candidates.append(Path(image_files[0]).resolve().parent / "chatgpt_analysis.txt")
+        for c in candidates:
+            if c.exists():
+                try:
+                    detections = _parse_chatgpt_detections(c.read_text())
+                    break
+                except Exception as exc:  # pragma: no cover - parse errors shouldn't crash
+                    print(f"Failed to parse {c}: {exc}")
+
+    if detections:
         gpt_fg = folium.FeatureGroup(name="ChatGPT Detections", show=True, control=True)
-        for idx, (lat, lon, score, desc) in enumerate(chatgpt_points, 1):
+        for idx, (lat, lon, score, desc) in enumerate(detections, 1):
             popup_text = (
                 f"<b>ID {idx}</b><br>Score: {score:.1f}<br>Location: {lat:.6f}, {lon:.6f}"
             )
