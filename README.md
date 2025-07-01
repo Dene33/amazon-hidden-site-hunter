@@ -2,6 +2,19 @@
 
 Python-based “digital machete” fuses DEM‑GEDI relief, NDVI‑type stress maps diffs & OpenAI o3 to unmask hidden Amazon man-made sites.
 
+
+- [Amazon Hidden Site Hunter](#amazon-hidden-site-hunter)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Configuration](#configuration)
+- [Viewing the results](#viewing-the-results)
+  - [Interactive map per bbox](#interactive-map-per-bbox)
+  - [Interactive map combined](#interactive-map-combined)
+- [Overview](#overview)
+- [How it works](#how-it-works)
+- [Notes](#notes)
+
+
 # Installation
 
 1. Install uv: https://docs.astral.sh/uv/getting-started/installation/
@@ -28,7 +41,29 @@ The configuration file is a YAML file that defines the pipeline steps and their 
 10. `export_obj` - export `bare_earth` and `copernicus_dem` in 3D .obj format for further processing in Blender or other 3D software
 11. `chatgpt` - use OpenAI's o3 to detect anomalies in the defined images. The output anomalies coordinates (and their descriptions) are highlighted on the interactive map, saved to a file, and can be used for further processing
 
+# Viewing the results
+
+## Interactive map per bbox
+![interactive_map](data/imgs/interactive_map.gif)
+
+The results will be saved the directory `{out_dir}/{bbox}` where `{out_dir}` is defined in the configuration .yaml file and `{bbox}` is the bbox coordinates from the list of `bbox` defined in the configuration file.
+
+Each step in the configuration .yaml file has `visualize` flag, which defines whether to generate the images for the step or not. All the images are available in the `{out_dir}/{bbox}` and also under `{out_dir}/{bbox}/debug`
+
+The interactive .html map `{out_dir}/{bbox}/interactive_map.html` is generated for each bbox from the list of `bbox` of configuration .yaml. This map has all the images embedded so one can easily share it with others. It contains all the images, anomalies highlighted, and OpenAI's o3 detections.
+
+You can check the examples of the generated interactive maps .html files [HERE](https://github.com/Dene33/openai-to-z-challenge-writeup/tree/main/data/maps).
+
+## Interactive map combined
+![combined_map](data/imgs/interactive_map_combined.gif)
+Additionally, if the `combined_bboxes_map` flag of the `interactive_map` step is set to `true`, a combined map for all bboxes will be generated in `{out_dir}/combined_map.html`. This map contains all the images from all bboxes, anomalies highlighted, and OpenAI's o3 detections. However, the images **are not embedded** in this map, so it is not as sharable as the individual bbox maps. To view this .html one needs all directories of bboxes to be present in the `{out_dir}` directory.
+
+In the `combined_map.html` use `ctrl+click` on a bbox to enable its visibility. This allows you to focus on a specific bbox and view its anomalies and OpenAI's o3 detections. `alt+click` on a bbox will disable its visibility. Use the panel on the right side to toggle the visibility of each image layer.
+
+I made the `combined_map.html` without the images embedded to keep the file size of .html small and avoid loading all the images at once, which can be slow and resource-intensive. For example, I processed 360 bboxes and for each bbox, there are ~7 images of various resolutions. The .html file size in that case will be huge, loading will be slow, and the browser will struggle to render it. The current approach solve this problem by loading images on demand when the bbox is clicked.
+
 # Overview
+
 [**Amazon Hidden Site Hunter**](https://github.com/Dene33/amazon-hidden-site-hunter) is a lightweight and super-powerful Python-based exploration tool developed to find hidden man-made structures in the Amazon. It helps to bring to life the legends about hidden Amazon civilizations using efficient anomaly highlighting and detection approaches, multi-range data (DEMs, GEDI, Sentinel2, etc), and state-of-the-art LLMs (OpenAI's o3).
 
 It was used to find multiple hidden man-made structures in the Amazon, possibly including the legendary `Lost City of Z`. 
