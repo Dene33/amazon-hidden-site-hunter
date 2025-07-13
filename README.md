@@ -26,6 +26,8 @@ Python-based “digital machete” fuses DEM‑GEDI relief, NDVI‑type stress m
 1. Create a configuration file `your_config_name.yaml`, see the `pipeline_config.yaml` for an example`
 2. Run the pipeline with your configuration file: `uv run your_config_name.yaml`
 
+For the examples of findings (like the legendary "lost city of Z”) made with the help of this tool, see my [Writeup for the Kaggle's competition OpenAI to Z Challenge](https://www.kaggle.com/competitions/openai-to-z-challenge/writeups/amazon-hidden-site-hunter)
+
 # Configuration
 
 The configuration file is a YAML file that defines the pipeline steps and their parameters. The example `pipeline_config.yaml` contains the following steps/flags:
