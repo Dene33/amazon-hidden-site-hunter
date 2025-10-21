@@ -467,7 +467,12 @@ def step_fetch_data(
             download_dir=download_dir,
         )
         mosaic = mosaic_cop_tiles(tiles, base / "cop90_mosaic.tif", bbox)
-        crop = crop_to_bbox(mosaic, bbox, base / "cop90_crop.tif")
+        crop = crop_to_bbox(
+            mosaic,
+            bbox,
+            base / "cop90_crop.tif",
+            resolution=0.0002695,
+        )
         dem_path = crop
         if cfg.get("visualize", True):
             mosaic_png = base / "1_copernicus_dem_mosaic_hillshade.png"
